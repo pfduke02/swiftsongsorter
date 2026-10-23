@@ -1,5 +1,7 @@
 # Swift Song Sorter
 
+Live at **https://swiftsongsorter.fishman-da7.workers.dev**
+
 Pick the Taylor Swift song you like better in each battle and get a ranking of all 253 album tracks. Runs as a single page on a Cloudflare Worker, with one record per sorter in a D1 database and a share link for each ranking.
 
 ## How the ranking works
