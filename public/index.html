@@ -157,7 +157,7 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
 
   <div class="stack" style="gap:8px">
     <h2>Albums to include</h2>
-    <p class="small muted">Taylor's Version tracklists are used where they exist, vault tracks included. Duplicate recordings (acoustic and piano versions) are left out. <span id="songCount"></span></p>
+    <p class="small muted">Taylor's Version tracklists are used where they exist, vault tracks and bonus tracks included. Duplicate recordings (acoustic and piano versions) are left out. <span id="songCount"></span></p>
     <div class="albums" id="albums"></div>
     <div class="row small">
       <button class="link" id="allBtn">Select all</button>
@@ -341,9 +341,9 @@ const ALBUMS=[
 {key:'ttpd',name:'The Tortured Poets Department',short:'TTPD',year:2024,era:3,color:'#a89576',songs:[
 "Fortnight|M|s|S","The Tortured Poets Department|M|s|","My Boy Only Breaks His Favorite Toys|M|s|","Down Bad|M|s|S","So Long, London|M|s|","But Daddy I Love Him|M|f|","Fresh Out the Slammer|M|f|","Florida!!!|U|r|","Guilty as Sin?|M|s|","Who's Afraid of Little Old Me?|M|s|","I Can Fix Him (No Really I Can)|B|f|","loml|B|q|","I Can Do It with a Broken Heart|U|p|S","The Smallest Man Who Ever Lived|M|s|","The Alchemy|M|s|","Clara Bow|B|f|","The Black Dog|M|q|","imgonnagetyouback|M|s|","The Albatross|B|f|","Chloe or Sam or Sophia or Marcus|B|f|","How Did It End?|B|q|","So High School|U|r|","I Hate It Here|M|f|","thanK you aIMee|M|f|","I Look in People's Windows|B|f|","The Prophecy|B|f|","Cassandra|M|q|","Peter|B|q|","The Bolter|M|f|","Robin|B|q|","The Manuscript|B|f|"]},
 {key:'showgirl',name:'The Life of a Showgirl',short:'Showgirl',year:2025,era:3,color:'#ee6a48',songs:[
-"The Fate of Ophelia|U|p|S","Elizabeth Taylor|M|p|","Opalite|U|p|S","Father Figure|M|p|","Eldest Daughter|B|q|","Ruin the Friendship|M|p|","Actually Romantic|M|r|","Wi$h Li$t|U|p|","Wood|U|p|","CANCELLED!|M|s|","Honey|M|p|","The Life of a Showgirl|U|p|"]},
+"The Fate of Ophelia|U|p|S","Elizabeth Taylor|M|p|","Opalite|U|p|S","Father Figure|M|p|","Eldest Daughter|B|q|","Ruin the Friendship|M|p|","Actually Romantic|M|r|","Wi$h Li$t|U|p|","Wood|U|p|","CANCELLED!|M|s|","Honey|M|p|","The Life of a Showgirl|U|p|","Pink Clouding|M|s|","Cleveland!|U|p|","Babylon|M|f|","Patient Zero|M|f|"]},
 {key:'extras',name:'Non-album singles & soundtracks',short:'Non-album',year:0,era:1,color:'#8a8a8a',songs:[
-"Crazier|B|c||0","If This Was a Movie (Taylor’s Version)|M|r||0","Safe & Sound|B|f|","Eyes Open|U|r|","I Don't Wanna Live Forever|M|s|S","Beautiful Ghosts|B|q|","Christmas Tree Farm|U|p|S","Only the Young|U|p|","Carolina|B|f||2"]},
+"Crazier|B|c||0","If This Was a Movie (Taylor’s Version)|M|r||0","Safe & Sound|B|f|","Eyes Open|U|r|","I Don't Wanna Live Forever|M|s|S","Beautiful Ghosts|B|q|","Christmas Tree Farm|U|p|S","Only the Young|U|p|","Carolina|B|f||2","All of the Girls You Loved Before|M|s|","I Knew It, I Knew You|M|c||3"]},
 ];
 const TEMPO={U:0,M:1,B:2};
 const STYLE={c:0,p:1,s:2,r:3,f:4,q:5};
@@ -364,6 +364,7 @@ TITLE2ID.set('all too well',KEY2ID.get('red:all-too-well-10-minute-version'));
 TITLE2ID.set('all too well 10 minute version taylors version',KEY2ID.get('red:all-too-well-10-minute-version'));
 function matchTitle(raw){
   let t=raw.replace(/^\s*(#|no\.?)?\s*\d+\s*[.):\-\u2013\u2014]?\s*/,'').trim();
+  if(!t) t=raw.trim(); // the title itself is a number, like "22"
   const tries=[normTitle(t),normTitle(t.replace(/\([^)]*\)/g,'')),normTitle(t.split(/\s[\u2013\u2014-]\s/)[0]),normTitle(t.split(/,/)[0])];
   for(const c of tries){ if(c&&TITLE2ID.has(c)) return TITLE2ID.get(c); }
   return undefined;
