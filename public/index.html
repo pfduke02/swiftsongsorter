@@ -54,6 +54,11 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
 /* setup */
 .albums{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.albpick summary{display:flex;justify-content:space-between;gap:12px;align-items:center;list-style:none;cursor:pointer;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.albpick summary::-webkit-details-marker{display:none}
+.albpick summary .link-ish{color:var(--muted);text-decoration:underline;text-underline-offset:3px;font-size:.875rem}
+.albpick[open] summary .link-ish{display:none}
+.albpick[open] summary{border-radius:8px 8px 0 0}
 .alb{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer}
 .alb input{margin:0;accent-color:var(--accent)}
 .dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--c,#888)}
@@ -163,15 +168,17 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
     </div>
   </div>
 
-  <div class="stack" style="gap:8px">
-    <h2>Albums to include</h2>
-    <p class="small muted">Taylor's Version tracklists are used where they exist, vault tracks and bonus tracks included. Duplicate recordings (acoustic and piano versions) are left out. <span id="songCount"></span></p>
-    <div class="albums" id="albums"></div>
-    <div class="row small">
-      <button class="link" id="allBtn">Select all</button>
-      <button class="link" id="noneBtn">Clear</button>
+  <details class="albpick" id="albumPicker">
+    <summary><span><b>Albums:</b> <span id="songCount"></span></span><span class="link-ish">change</span></summary>
+    <div class="stack" style="gap:8px;margin-top:10px">
+      <p class="small muted">Taylor's Version tracklists are used where they exist, vault tracks and bonus tracks included. Duplicate recordings (acoustic and piano versions) are left out.</p>
+      <div class="albums" id="albums"></div>
+      <div class="row small">
+        <button class="link" id="allBtn">Select all</button>
+        <button class="link" id="noneBtn">Clear</button>
+      </div>
     </div>
-  </div>
+  </details>
 
   <div class="stack" style="gap:8px">
     <h2>How many battles</h2>
@@ -586,7 +593,7 @@ function renderSetup(){
   }
 }
 function selectedAlbums(){ return [...document.querySelectorAll('#albums input:checked')].map(i=>i.value); }
-function updateCount(){ const keys=new Set(selectedAlbums()); const n=SONGS.filter(s=>keys.has(ALBUMS[s.album].key)).length; $('songCount').textContent=`${n} songs selected.`; $('startBtn').disabled=n<2; }
+function updateCount(){ const keys=new Set(selectedAlbums()); const n=SONGS.filter(s=>keys.has(ALBUMS[s.album].key)).length; const all=keys.size===ALBUMS.length; $('songCount').textContent=all?`all ${ALBUMS.length} albums, ${n} songs`:`${keys.size} of ${ALBUMS.length} albums, ${n} songs`; $('startBtn').disabled=n<2; }
 $('allBtn').onclick=()=>{document.querySelectorAll('#albums input').forEach(i=>i.checked=true);updateCount();};
 $('noneBtn').onclick=()=>{document.querySelectorAll('#albums input').forEach(i=>i.checked=false);updateCount();};
 
