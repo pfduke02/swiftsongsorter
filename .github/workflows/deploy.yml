@@ -23,16 +23,25 @@ jobs:
       - run: npm ci
 
       - name: Ensure the D1 database exists and fill in its id
+        env:
+          ACCOUNT_ID: da7a2954edc68888dc5f7cda1675f778
+          DB_NAME: swift-song-sorter
         run: |
           set -e
-          find_id() { npx wrangler d1 list --json | node -e 'const l=JSON.parse(require("fs").readFileSync(0));const d=l.find(x=>x.name==="swift-song-sorter");process.stdout.write(d?d.uuid:"")'; }
-          ID="$(find_id)"
+          api() { curl -sS "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/d1/database$1" \
+                    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" "${@:2}"; }
+          check() { # print Cloudflare's error messages if the call failed
+            if [ "$(echo "$1" | jq -r '.success')" != "true" ]; then
+              echo "Cloudflare API call failed:"; echo "$1" | jq -r '.errors[]? | "  [\(.code)] \(.message)"'; exit 1; fi; }
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "CLOUDFLARE_API_TOKEN secret is not set"; exit 1; }
+          LIST="$(api "?name=$DB_NAME")"; check "$LIST"
+          ID="$(echo "$LIST" | jq -r --arg n "$DB_NAME" '.result[] | select(.name==$n) | .uuid' | head -n1)"
           if [ -z "$ID" ]; then
-            echo "Creating D1 database swift-song-sorter"
-            npx wrangler d1 create swift-song-sorter >/dev/null
-            ID="$(find_id)"
+            echo "Creating D1 database $DB_NAME"
+            CREATED="$(api "" -X POST --data "{\"name\":\"$DB_NAME\"}")"; check "$CREATED"
+            ID="$(echo "$CREATED" | jq -r '.result.uuid')"
           fi
-          [ -n "$ID" ] || { echo "Could not determine the D1 database id"; exit 1; }
+          [ -n "$ID" ] && [ "$ID" != "null" ] || { echo "Could not determine the D1 database id"; exit 1; }
           sed -i "s/REPLACE_WITH_YOUR_D1_DATABASE_ID/$ID/" wrangler.jsonc
           echo "Using D1 database $ID"
 
