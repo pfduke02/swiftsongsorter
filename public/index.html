@@ -125,6 +125,13 @@ a.btn:hover{border-color:var(--fg)}
 input[type=text]{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px;min-width:0;width:min(100%,320px)}
 .ranked.view li{grid-template-columns:3ch 1fr}
 .sync:empty{display:none}
+select{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+.cmp-stats{display:flex;gap:20px;flex-wrap:wrap}
+.cmp-stats .stat b{font-size:1.4rem}
+.cmp-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.cmp-cols ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.cmp-cols li{display:flex;justify-content:space-between;gap:10px;font-size:.9rem;border-bottom:1px solid var(--line);padding:4px 0}
+.cmp-cols li span:last-child{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem;overflow-wrap:anywhere;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
 </style>
 </head>
@@ -204,8 +211,15 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
   </div>
 
   <div class="row" style="justify-content:space-between">
-    <button class="link" id="undoBtn">Undo last choice</button>
+    <div class="row">
+      <button id="saveBtn">Save progress</button>
+      <button class="link" id="undoBtn">Undo last choice</button>
+    </div>
     <button id="finishBtn">Stop and see ranking</button>
+  </div>
+  <div class="note" id="saveBox" hidden>
+    <p><b>Saved.</b> <span class="small muted">Progress is kept in this browser and online. To continue on another device, open this private resume link there. Don't share it; anyone with it can change your sort.</span></p>
+    <div class="row" style="margin-top:8px"><code class="url" id="resumeUrl"></code><button id="resumeCopy">Copy link</button></div>
   </div>
   <div class="kb">
     <span><kbd>←</kbd> left song</span><span><kbd>→</kbd> right song</span><span><kbd>B</kbd> both</span><span><kbd>N</kbd> no opinion</span><span><kbd>Z</kbd> undo</span>
@@ -257,6 +271,22 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
   </div>
 
   <details><summary>Plain-text list</summary><textarea class="export" id="exportBox" readonly></textarea></details>
+
+  <div class="stack" style="gap:10px" id="compareWrap">
+    <h2>Compare</h2>
+    <p class="small muted">How close is your ranking to someone else's? Match is 100 for identical lists and about 33 for unrelated ones. Only songs in both lists are compared.</p>
+    <div class="row">
+      <select id="cmpSource">
+        <option value="community">Everyone who has sorted here</option>
+        <option value="link">Someone's share link</option>
+        <option value="paste">A pasted list</option>
+      </select>
+      <input type="text" id="cmpLink" placeholder="Paste a share link or id" hidden>
+      <button class="primary" id="cmpBtn">Compare</button>
+    </div>
+    <textarea class="export" id="cmpPaste" placeholder="One song per line, best first. Numbers like '1.' are fine." hidden></textarea>
+    <div id="cmpOut" class="stack" style="gap:10px"></div>
+  </div>
 </section>
 
 <!-- ============ SHARED VIEW ============ -->
@@ -266,7 +296,8 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
     <h1 id="viewTitle">Loading…</h1>
     <p class="muted small" id="viewMeta"></p>
   </div>
-  <div class="row"><a class="btn" href="/">Make your own ranking</a></div>
+  <div class="row"><a class="btn" href="/">Make your own ranking</a><button id="viewCmpBtn" hidden>Compare with my ranking</button></div>
+  <div id="viewCmpOut" class="stack" style="gap:10px"></div>
   <div class="stack" style="gap:10px" id="viewAlbWrap" hidden>
     <h2>Albums</h2>
     <div class="tblwrap"><table class="alb-t"><thead><tr><th>#</th><th>Album</th><th><button data-k="mean">Mean rank</button></th><th><button data-k="median">Median rank</button></th><th><button data-k="top">In top 26</button></th><th>Songs</th></tr></thead><tbody id="viewAlb"></tbody></table></div>
@@ -294,7 +325,7 @@ const ALBUMS=[
 {key:'speaknow',name:'Speak Now (Taylor’s Version)',short:'Speak Now',year:2010,era:0,color:'#8a4fbf',songs:[
 "Mine|U|c|S","Sparks Fly|U|r|S","Back to December|B|q|S","Speak Now|U|c|","Dear John|B|q|","Mean|U|c|S","The Story of Us|U|r|S","Never Grow Up|B|f|","Enchanted|M|r|","Better Than Revenge|U|r|","Innocent|B|q|","Haunted|U|r|","Last Kiss|B|q|","Long Live|M|r|","Ours|M|c|S","Superman|M|p|","Electric Touch|M|r|","When Emma Falls in Love|M|q|","I Can See You|U|r|S","Castles Crumbling|B|q|","Foolish One|M|c|","Timeless|M|c|"]},
 {key:'red',name:'Red (Taylor’s Version)',short:'Red',year:2012,era:1,color:'#c0322e',songs:[
-"State of Grace|U|r|","Red|U|r|S","Treacherous|M|f|","I Knew You Were Trouble|U|s|S","All Too Well|B|q|","22|U|p|S","I Almost Do|B|c|","We Are Never Ever Getting Back Together|U|p|S","Stay Stay Stay|U|c|","The Last Time|B|q|","Holy Ground|U|r|","Sad Beautiful Tragic|B|f|","The Lucky One|M|p|","Everything Has Changed|M|f|S","Starlight|U|p|","Begin Again|B|c|S","The Moment I Knew|B|q|","Come Back... Be Here|M|r|","Girl at Home|U|p|","Ronan|B|q|","Better Man|B|c|","Nothing New|B|f|","Babe|M|p|","Message in a Bottle|U|p|","I Bet You Think About Me|M|c|S","Forever Winter|M|r|","Run|B|f|","The Very First Night|U|p|","All Too Well (10 Minute Version)|B|q|S"]},
+"State of Grace|U|r|","Red|U|r|S","Treacherous|M|f|","I Knew You Were Trouble|U|s|S","22|U|p|S","I Almost Do|B|c|","We Are Never Ever Getting Back Together|U|p|S","Stay Stay Stay|U|c|","The Last Time|B|q|","Holy Ground|U|r|","Sad Beautiful Tragic|B|f|","The Lucky One|M|p|","Everything Has Changed|M|f|S","Starlight|U|p|","Begin Again|B|c|S","The Moment I Knew|B|q|","Come Back... Be Here|M|r|","Girl at Home|U|p|","Ronan|B|q|","Better Man|B|c|","Nothing New|B|f|","Babe|M|p|","Message in a Bottle|U|p|","I Bet You Think About Me|M|c|S","Forever Winter|M|r|","Run|B|f|","The Very First Night|U|p|","All Too Well (10 Minute Version)|B|q|S"]},
 {key:'1989',name:'1989 (Taylor’s Version)',short:'1989',year:2014,era:1,color:'#4b9fd8',songs:[
 "Welcome to New York|U|s|","Blank Space|U|p|S","Style|U|s|S","Out of the Woods|U|s|S","All You Had to Do Was Stay|U|p|","Shake It Off|U|p|S","I Wish You Would|U|s|","Bad Blood|U|p|S","Wildest Dreams|M|s|S","How You Get the Girl|U|p|","This Love|B|q|","I Know Places|U|s|","Clean|B|s|","Wonderland|U|s|","You Are in Love|B|s|","New Romantics|U|p|S","\"Slut!\"|M|s|","Say Don't Go|M|s|","Now That We Don't Talk|U|s|","Suburban Legends|U|s|","Is It Over Now?|M|s|S","Sweeter Than Fiction|U|p|"]},
 {key:'rep',name:'Reputation',short:'Reputation',year:2017,era:1,color:'#7b7a8c',songs:[
@@ -318,12 +349,30 @@ const TEMPO={U:0,M:1,B:2};
 const STYLE={c:0,p:1,s:2,r:3,f:4,q:5};
 const SONGS=[];
 const KEY2ID=new Map();
-const key=i=>ALBUMS[SONGS[i].album].key+':'+SONGS[i].track;
+const slug=t=>t.toLowerCase().replace(/\$/g,'s').replace(/&/g,'and').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const key=i=>SONGS[i].key;
 ALBUMS.forEach((al,ai)=>al.songs.forEach((s,ti)=>{
   const [title,tempo,style,single,era]=s.split('|');
-  SONGS.push({id:SONGS.length,title,album:ai,track:ti,era:era!==undefined&&era!==''?+era:al.era,tempo:TEMPO[tempo]??1,style:STYLE[style]??1,single:single==='S'?1:0});
-  KEY2ID.set(al.key+':'+ti,SONGS.length-1);
+  const k=al.key+':'+slug(title);
+  SONGS.push({id:SONGS.length,key:k,title,album:ai,track:ti,era:era!==undefined&&era!==''?+era:al.era,tempo:TEMPO[tempo]??1,style:STYLE[style]??1,single:single==='S'?1:0});
+  KEY2ID.set(k,SONGS.length-1);
 }));
+/* Match free-text titles (pasted lists, other people's rankings) to the library. */
+const normTitle=t=>t.toLowerCase().replace(/\(taylor['\u2019]s version\)|\(from the vault\)|\[[^\]]*\]|\((feat|ft)\.?[^)]*\)/g,'').replace(/\$/g,'s').replace(/&/g,'and').replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+const TITLE2ID=new Map(SONGS.map(s=>[normTitle(s.title),s.id]));
+TITLE2ID.set('all too well',KEY2ID.get('red:all-too-well-10-minute-version'));
+TITLE2ID.set('all too well 10 minute version taylors version',KEY2ID.get('red:all-too-well-10-minute-version'));
+function matchTitle(raw){
+  let t=raw.replace(/^\s*(#|no\.?)?\s*\d+\s*[.):\-\u2013\u2014]?\s*/,'').trim();
+  const tries=[normTitle(t),normTitle(t.replace(/\([^)]*\)/g,'')),normTitle(t.split(/\s[\u2013\u2014-]\s/)[0]),normTitle(t.split(/,/)[0])];
+  for(const c of tries){ if(c&&TITLE2ID.has(c)) return TITLE2ID.get(c); }
+  return undefined;
+}
+function parseList(text){
+  const ids=[],unmatched=[],seen=new Set();
+  text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach(l=>{ const id=matchTitle(l); if(id===undefined) unmatched.push(l); else if(!seen.has(id)){ seen.add(id); ids.push(id); } });
+  return {ids,unmatched};
+}
 
 /* ---------------- State ---------------- */
 const KEY='swift-sorter-v1';
@@ -578,6 +627,26 @@ $('songB').onclick=()=>answer('b');
 $('tieBtn').onclick=()=>answer('t');
 $('skipBtn').onclick=()=>answer('n');
 $('undoBtn').onclick=undo;
+$('saveBtn').onclick=async()=>{
+  clearTimeout(syncTimer); syncDirty=true;
+  while(syncing) await new Promise(r=>setTimeout(r,100));
+  await syncNow();
+  if(state.cloud&&state.cloud.id){ $('resumeUrl').textContent=`${location.origin}/r/${state.cloud.id}#${state.cloud.token}`; $('saveBox').hidden=false; toast('Progress saved online'); }
+  else toast('Could not reach the server; progress is saved on this device');
+};
+$('resumeCopy').onclick=()=>{ const txt=$('resumeUrl').textContent; const fb=()=>{ const r=document.createRange(); r.selectNodeContents($('resumeUrl')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast('Link selected, press copy'); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(()=>toast('Resume link copied')).catch(fb); else fb(); };
+async function resumeFromLink(id,token){
+  try{
+    const r=await fetch(API+'/sorts/'+id+'/state',{headers:{Authorization:'Bearer '+token}});
+    if(!r.ok) throw new Error('no access');
+    const d=await r.json(); const st=d.state||{};
+    history.replaceState(null,'','/');
+    begin({included:st.included||ALBUMS.map(a=>a.key),budget:st.budget||d.budget||500,name:st.name||d.name||'',history:st.history||[],pair:st.pair||null,manual:st.manual||null,
+           cloud:{id,token,synced:(st.history||[]).length}});
+    toast('Progress loaded');
+  }catch(e){ renderSetup(); show('setup'); toast('That resume link did not work'); }
+}
 $('finishBtn').onclick=()=>{ showResults(); };
 document.addEventListener('keydown',e=>{
   if(screens.battle.hidden||e.metaKey||e.ctrlKey||e.altKey) return;
@@ -664,12 +733,85 @@ function showResults(){
   const hasCloud=!!(state.cloud&&state.cloud.id);
   $('shareBox').hidden=!hasCloud;
   if(hasCloud) $('shareUrl').textContent=`${location.origin}/s/${state.cloud.id}`;
+  populateListOptions();
   scheduleSync();
 }
 $('shareCopy').onclick=()=>{
   const txt=$('shareUrl').textContent;
   const fallback=()=>{ const r=document.createRange(); r.selectNodeContents($('shareUrl')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast('Link selected, press copy'); };
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>toast('Link copied')).catch(fallback); } else fallback();
+};
+
+/* ---------------- Comparing two rankings ----------------
+   Both lists are cut down to the songs they share, re-ranked, then:
+   match  = 100 * (1 - mean |rank difference| / (n/2))  → 100 identical, ~33 unrelated, 0 reversed
+   rho    = Spearman rank correlation
+   topK   = how many of the other list's top K are also in yours */
+function compareRankings(mine,theirs){
+  const inB=new Set(theirs), common=new Set(mine.filter(i=>inB.has(i)));
+  const a=mine.filter(i=>common.has(i)), b=theirs.filter(i=>common.has(i)), n=a.length;
+  if(n<2) return null;
+  const pa=new Map(a.map((i,r)=>[i,r])), pb=new Map(b.map((i,r)=>[i,r]));
+  let sumAbs=0,sumSq=0; for(const i of a){ const d=pa.get(i)-pb.get(i); sumAbs+=Math.abs(d); sumSq+=d*d; }
+  const match=Math.max(0,100*(1-(sumAbs/n)/(n/2))), rho=1-6*sumSq/(n*(n*n-1));
+  const topK=k=>{ const A=new Set(a.slice(0,k)); return {hit:b.slice(0,k).filter(i=>A.has(i)).length,k:Math.min(k,n)}; };
+  const diffs=a.map(i=>({id:i,mine:pa.get(i)+1,theirs:pb.get(i)+1,d:pb.get(i)-pa.get(i)})).sort((x,y)=>y.d-x.d);
+  return {n,match,rho,top26:topK(26),top52:topK(52),higherMine:diffs.slice(0,6).filter(x=>x.d>0),higherTheirs:diffs.slice(-6).reverse().filter(x=>x.d<0)};
+}
+function renderComparison(el,res,label,extra){
+  if(!res){ el.innerHTML=`<p class="small muted">Not enough songs in common to compare.</p>`; return; }
+  const li=x=>`<li><span>${esc(SONGS[x.id].title)}</span><span>you ${x.mine} · ${esc(label)} ${x.theirs}</span></li>`;
+  el.innerHTML=`<div class="cmp-stats">
+    <div class="stat"><b>${res.match.toFixed(0)}%</b><span class="small muted">match with ${esc(label)}</span></div>
+    <div class="stat"><b>${res.top26.hit}/${res.top26.k}</b><span class="small muted">of their top 26 in yours</span></div>
+    <div class="stat"><b>${res.top52.hit}/${res.top52.k}</b><span class="small muted">of their top 52 in yours</span></div>
+    <div class="stat"><b>${res.rho.toFixed(2)}</b><span class="small muted">rank correlation</span></div>
+    <div class="stat"><b>${res.n}</b><span class="small muted">songs compared</span></div>
+  </div>${extra?`<p class="small muted">${extra}</p>`:''}
+  <div class="cmp-cols">
+    <div><p class="eyebrow">You rank much higher</p><ul>${res.higherMine.map(li).join('')||'<li><span class="muted">None</span></li>'}</ul></div>
+    <div><p class="eyebrow">They rank much higher</p><ul>${res.higherTheirs.map(li).join('')||'<li><span class="muted">None</span></li>'}</ul></div>
+  </div>`;
+}
+async function fetchOtherRanking(source,link,pasted){
+  if(source==='community'){
+    const r=await fetch(API+'/community'); if(!r.ok) throw new Error('community unavailable');
+    const d=await r.json(); if(!d.ranking||d.sorters<1) throw new Error('No rankings saved yet');
+    return {ids:d.ranking.map(k=>KEY2ID.get(k)).filter(i=>i!==undefined),label:`everyone (${d.sorters})`,extra:`Average of ${d.sorters} saved ranking${d.sorters===1?'':'s'}, yours included if it is saved.`};
+  }
+  if(source==='link'){
+    const m=(link||'').match(/([a-z0-9]{6,})\s*$/i); if(!m) throw new Error('Paste a share link like /s/abc123');
+    const r=await fetch(API+'/sorts/'+m[1]); if(!r.ok) throw new Error('That share link was not found');
+    const d=await r.json(); if(!d.ranking) throw new Error('That person has no ranking yet');
+    return {ids:d.ranking.map(k=>KEY2ID.get(k)).filter(i=>i!==undefined),label:d.name||'them',extra:''};
+  }
+  if(source.startsWith('list:')){
+    const lists=await loadLists(); const L=lists.find(x=>x.id===source.slice(5)); if(!L) throw new Error('List not found');
+    const {ids,unmatched}=parseList(L.titles.join('\n'));
+    return {ids,label:L.name,extra:`${L.source||''}${L.url?` <a href="${L.url}" target="_blank" rel="noopener">source</a>`:''}${unmatched.length?` · ${unmatched.length} titles not in the library`:''}`};
+  }
+  const {ids,unmatched}=parseList(pasted||''); if(ids.length<2) throw new Error('Could not match enough song titles');
+  return {ids,label:'the pasted list',extra:unmatched.length?`Not matched: ${esc(unmatched.slice(0,8).join('; '))}${unmatched.length>8?` and ${unmatched.length-8} more`:''}`:'All titles matched.'};
+}
+let listsCache=null;
+async function loadLists(){ if(listsCache) return listsCache; try{ const r=await fetch('/lists.json'); listsCache=r.ok?await r.json():[]; }catch(e){ listsCache=[]; } return listsCache; }
+async function populateListOptions(){
+  const lists=await loadLists(); const sel=$('cmpSource');
+  lists.forEach(L=>{ if(!sel.querySelector(`option[value="list:${L.id}"]`)){ const o=document.createElement('option'); o.value='list:'+L.id; o.textContent=L.name; sel.insertBefore(o,sel.querySelector('option[value=link]')); } });
+}
+$('cmpSource').onchange=()=>{ const v=$('cmpSource').value; $('cmpLink').hidden=v!=='link'; $('cmpPaste').hidden=v!=='paste'; };
+$('cmpBtn').onclick=async()=>{
+  const out=$('cmpOut'); out.innerHTML='<p class="small muted">Comparing…</p>';
+  try{ const o=await fetchOtherRanking($('cmpSource').value,$('cmpLink').value,$('cmpPaste').value);
+       renderComparison(out,compareRankings(currentOrder(),o.ids),o.label,o.extra); }
+  catch(e){ out.innerHTML=`<p class="small muted">${esc(e.message)}</p>`; }
+};
+$('viewCmpBtn').onclick=()=>{
+  const saved=load(); if(!saved||!viewOrder) return;
+  // Rebuild my ranking from the saved state without touching the view.
+  state=saved; const keys=new Set(state.included); active=SONGS.filter(x=>keys.has(ALBUMS[x.album].key)).map(x=>x.id); rebuild(true);
+  const mine=currentOrder(); state=null;
+  renderComparison($('viewCmpOut'),compareRankings(mine,viewOrder),$('viewTitle').textContent.replace(/\u2019s ranking$/,''),'');
 };
 
 /* ---------------- Read-only shared view (/s/:id) ---------------- */
@@ -689,6 +831,7 @@ async function loadView(id){
     viewOrder.forEach((i,idx)=>{ const s=SONGS[i], al=ALBUMS[s.album];
       ol.insertAdjacentHTML('beforeend',`<li><span class="n">${idx+1}</span><div class="title"><span>${esc(s.title)}</span><span class="pill"><i class="dot" style="--c:${al.color}"></i>${al.short}</span></div></li>`); });
     $('viewAlbWrap').hidden=false; $('viewListWrap').hidden=false;
+    const mineSaved=load(); $('viewCmpBtn').hidden=!(mineSaved&&mineSaved.history&&mineSaved.history.length>0);
   }catch(e){ $('viewTitle').textContent='Could not load this ranking'; $('viewMeta').textContent='Check the link, or try again in a moment.'; }
 }
 function renderList(order){
@@ -751,7 +894,9 @@ $('restartBtn').onclick=()=>{ clear(); state=null; $('resumeBox').hidden=true; s
 
 /* ---------------- Boot ---------------- */
 const shared=location.pathname.match(/^\/s\/([a-z0-9]+)\/?$/i);
+const resume=location.pathname.match(/^\/r\/([a-z0-9]+)\/?$/i);
 if(shared) loadView(shared[1]);
+else if(resume&&location.hash.length>1) resumeFromLink(resume[1],location.hash.slice(1));
 else { renderSetup(); show('setup'); }
 </script>
 </body>

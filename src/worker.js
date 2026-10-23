@@ -5,6 +5,8 @@
  *   POST /api/sorts            create a sort record → { id, token }
  *   GET  /api/sorts/:id        public view of one record (name, battles, ranking)
  *   PUT  /api/sorts/:id        save progress; needs "Authorization: Bearer <token>"
+ *   GET  /api/sorts/:id/state  full saved state for resuming elsewhere; needs the token
+ *   GET  /api/community        average ranking across everyone who saved one
  *   GET  /api/stats            song win rates across every sorter
  */
 
@@ -25,10 +27,12 @@ export default {
 };
 
 async function route(request, env, url) {
-  const parts = url.pathname.split('/').filter(Boolean); // ['api', 'sorts', id]
-  const [, resource, id] = parts;
+  const parts = url.pathname.split('/').filter(Boolean); // ['api', 'sorts', id, sub]
+  const [, resource, id, sub] = parts;
 
   if (resource === 'sorts' && !id && request.method === 'POST') return createSort(request, env);
+  if (resource === 'sorts' && id && sub === 'state' && request.method === 'GET') return getState(request, env, id);
+  if (resource === 'community' && request.method === 'GET') return community(env);
   if (resource === 'sorts' && id && request.method === 'GET') return getSort(env, id);
   if (resource === 'sorts' && id && request.method === 'PUT') return saveSort(request, env, id);
   if (resource === 'stats' && request.method === 'GET') return stats(env, url);
@@ -64,12 +68,40 @@ async function getSort(env, id) {
   });
 }
 
-async function saveSort(request, env, id) {
+async function authorize(request, env, id) {
   const token = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
   if (!token) return json({ error: 'Missing token' }, 401);
   const row = await env.DB.prepare(`SELECT token_hash FROM sorts WHERE id = ?`).bind(id).first();
   if (!row) return json({ error: 'No sort with that id' }, 404);
   if (row.token_hash !== (await sha256(token))) return json({ error: 'Wrong token' }, 403);
+  return null;
+}
+
+async function getState(request, env, id) {
+  const denied = await authorize(request, env, id);
+  if (denied) return denied;
+  const row = await env.DB.prepare(`SELECT name, budget, battles, state, updated_at FROM sorts WHERE id = ?`).bind(id).first();
+  return json({ id, name: row.name, budget: row.budget, battles: row.battles, state: row.state ? JSON.parse(row.state) : null, updated_at: row.updated_at });
+}
+
+async function community(env) {
+  // Average each song's relative position (0 = top, 1 = bottom) across the latest saved rankings.
+  const { results } = await env.DB.prepare(
+    `SELECT ranking FROM sorts WHERE ranking IS NOT NULL AND battles >= 10 ORDER BY updated_at DESC LIMIT 500`
+  ).all();
+  const sum = new Map(), cnt = new Map();
+  for (const row of results) {
+    let list; try { list = JSON.parse(row.ranking); } catch { continue; }
+    if (!Array.isArray(list) || list.length < 2) continue;
+    list.forEach((k, i) => { sum.set(k, (sum.get(k) || 0) + i / (list.length - 1)); cnt.set(k, (cnt.get(k) || 0) + 1); });
+  }
+  const ranking = [...sum.keys()].sort((a, b) => sum.get(a) / cnt.get(a) - sum.get(b) / cnt.get(b));
+  return json({ sorters: results.length, ranking });
+}
+
+async function saveSort(request, env, id) {
+  const denied = await authorize(request, env, id);
+  if (denied) return denied;
 
   const body = await readJson(request);
   const now = new Date().toISOString();
