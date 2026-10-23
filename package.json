@@ -1,0 +1,16 @@
+{
+  "name": "swift-song-sorter",
+  "version": "1.0.0",
+  "description": "A-vs-B song sorter for Taylor Swift album tracks with per-person records in Cloudflare D1",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:create": "wrangler d1 create swift-song-sorter",
+    "db:migrate:local": "wrangler d1 migrations apply swift-song-sorter --local",
+    "db:migrate": "wrangler d1 migrations apply swift-song-sorter --remote",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.42.0"
+  },
+  "private": true
+}

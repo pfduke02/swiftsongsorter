@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Swift Song Sorter</title>
+<meta name="description" content="Pick the Taylor Swift song you like better in each battle and get a ranking of every album track.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+html,body{margin:0;height:auto}
+[hidden]{display:none!important}
+img{max-width:100%}
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+/* Layout: one centered column (max 820px). Three screens: setup → battle arena → ranked list. */
+:root{
+  --bg:#f6f5fa; --surface:#ffffff; --fg:#1c1928; --muted:#6a677d; --line:#dcd9e8; --soft:#ece8f4;
+  --accent:#8e1b3c; --accent-fg:#ffffff; --accent-soft:#f5e3e9;
+  --display:'Fraunces',Georgia,'Times New Roman',serif;
+  --body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131120; --surface:#1c1930; --fg:#ebe8f5; --muted:#9d99b6; --line:#332f4b; --soft:#252240;
+    --accent:#e86f8f; --accent-fg:#1a0810; --accent-soft:#3a1f2b; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131120; --surface:#1c1930; --fg:#ebe8f5; --muted:#9d99b6; --line:#332f4b; --soft:#252240;
+  --accent:#e86f8f; --accent-fg:#1a0810; --accent-soft:#3a1f2b; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 48px}
+.wrap{max-width:820px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);font-weight:600;line-height:1.15;margin:0;text-wrap:balance}
+h1{font-size:2.2rem}
+h2{font-size:1.5rem}
+h3{font-size:1.1rem}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.875rem}
+.eyebrow{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.stack{display:flex;flex-direction:column;gap:16px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+button{font:inherit;color:inherit;cursor:pointer;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px 16px}
+button:hover{border-color:var(--fg)}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+button.primary:hover{filter:brightness(1.08)}
+button.link{border:none;background:none;padding:4px 6px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+button.link:hover{color:var(--fg)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.hdr{display:flex;flex-direction:column;gap:8px;margin-bottom:28px}
+
+/* setup */
+.albums{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.alb{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer}
+.alb input{margin:0;accent-color:var(--accent)}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--c,#888)}
+.alb .name{flex:1;min-width:0}
+.alb .cnt{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.875rem}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg label{padding:8px 14px;cursor:pointer;font-variant-numeric:tabular-nums;border-right:1px solid var(--line)}
+.seg label:last-child{border-right:none}
+.seg input{position:absolute;opacity:0;width:0;height:0}
+.seg label:has(input:checked){background:var(--accent);color:var(--accent-fg);font-weight:600}
+.seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:-2px}
+.note{border-left:3px solid var(--accent);padding:8px 14px;background:var(--accent-soft);border-radius:0 8px 8px 0}
+
+/* battle */
+.prog{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.bar{height:6px;background:var(--soft);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s}
+@media (prefers-reduced-motion: reduce){.bar i{transition:none}}
+.arena{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:stretch;margin-top:8px}
+@media (max-width:560px){.arena{grid-template-columns:1fr 1fr;grid-auto-flow:dense}.arena .mid{grid-column:1/-1;flex-direction:row}}
+.song{min-height:220px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;text-align:center;padding:24px 18px;
+  border:2px solid var(--line);background:var(--surface);border-radius:14px;min-width:0}
+.song:hover{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.song .t{font-family:var(--display);font-size:1.75rem;font-weight:600;line-height:1.15;text-wrap:balance;overflow-wrap:anywhere}
+@media (max-width:560px){.song .t{font-size:1.3rem}.song{min-height:170px;padding:18px 12px}}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted)}
+.mid{display:flex;flex-direction:column;gap:10px;justify-content:center}
+.mid button{min-width:130px}
+.kb{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.8rem;margin-top:10px}
+kbd{font-family:var(--body);font-size:.75rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--surface)}
+
+/* results */
+.stats{display:flex;gap:24px;flex-wrap:wrap}
+.stat b{font-family:var(--display);font-size:1.6rem;font-weight:600;display:block;line-height:1.1;font-variant-numeric:tabular-nums}
+.albrank{display:grid;grid-template-columns:auto 1fr auto;gap:6px 12px;align-items:center}
+.albrank .b{height:10px;border-radius:5px;background:var(--c);opacity:.85;min-width:4px}
+.albrank .v{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.8rem;text-align:right}
+.ranked{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.ranked li{display:grid;grid-template-columns:auto 3ch 1fr auto auto;gap:10px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);background:var(--bg)}
+.ranked li.dragging{opacity:.5;background:var(--accent-soft)}
+.handle{cursor:grab;touch-action:none;color:var(--muted);padding:6px 4px;user-select:none;font-size:1rem;line-height:1;border:none;background:none}
+.handle:active{cursor:grabbing}
+.nudge{display:flex;flex-direction:column;gap:2px}
+.nudge button{padding:0 6px;line-height:1.3;font-size:.75rem;border-radius:4px}
+@media (max-width:560px){.conf em{display:none}}
+.ranked li:nth-child(-n+10){background:var(--surface)}
+.ranked .n{font-variant-numeric:tabular-nums;color:var(--muted);text-align:right;font-family:var(--display)}
+.ranked .title{min-width:0;display:flex;flex-direction:column;gap:1px}
+.ranked .title span{font-weight:500}
+.conf{display:flex;gap:3px;align-items:center}
+.conf i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.conf i.on{background:var(--accent)}
+.conf em{font-style:normal;font-size:.72rem;color:var(--muted);margin-left:4px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:.875rem;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+textarea.export{width:100%;height:160px;font:inherit;font-size:.85rem;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px}
+details summary{cursor:pointer;color:var(--muted)}
+.tblwrap{overflow-x:auto}
+table.alb-t{border-collapse:collapse;width:100%;font-size:.9rem}
+.alb-t th,.alb-t td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.alb-t th:first-child,.alb-t td:first-child,.alb-t th:nth-child(2),.alb-t td:nth-child(2){text-align:left}
+.alb-t th{font-weight:600;color:var(--muted);font-size:.75rem;letter-spacing:.06em;text-transform:uppercase}
+.alb-t th button{border:none;background:none;padding:0;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer}
+.alb-t th button.on{color:var(--accent)}
+.alb-t td .dot{display:inline-block;vertical-align:middle;margin-right:6px}
+.alb-t tr:first-child td{font-weight:600}
+a.btn{display:inline-block;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px 16px;color:inherit;text-decoration:none}
+a.btn:hover{border-color:var(--fg)}
+input[type=text]{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px;min-width:0;width:min(100%,320px)}
+.ranked.view li{grid-template-columns:3ch 1fr}
+.sync:empty{display:none}
+code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem;overflow-wrap:anywhere;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<!-- ============ SETUP ============ -->
+<section id="setup" class="stack">
+  <div class="hdr">
+    <p class="eyebrow">Taylor Swift · album tracks</p>
+    <h1>Swift Song Sorter</h1>
+    <p class="muted">Pick the song you like better in each battle. After your chosen number of battles the sorter uses your choices, plus how songs relate by album, era and tempo, to rank every song in the library. You can keep refining after that.</p>
+  </div>
+
+  <div id="resumeBox" class="note" hidden>
+    <p><b>You have a sort in progress.</b> <span id="resumeText"></span></p>
+    <div class="row" style="margin-top:8px">
+      <button class="primary" id="resumeBtn">Resume</button>
+      <button id="discardBtn">Discard and start fresh</button>
+    </div>
+  </div>
+
+  <div class="stack" style="gap:8px">
+    <h2>Albums to include</h2>
+    <p class="small muted">Taylor's Version tracklists are used where they exist, vault tracks included. Duplicate recordings (acoustic and piano versions) are left out. <span id="songCount"></span></p>
+    <div class="albums" id="albums"></div>
+    <div class="row small">
+      <button class="link" id="allBtn">Select all</button>
+      <button class="link" id="noneBtn">Clear</button>
+    </div>
+  </div>
+
+  <div class="stack" style="gap:8px">
+    <h2>How many battles</h2>
+    <p class="small muted">You can stop at any point and see the ranking inferred from the battles so far. The first 40 battles learn your album and style taste; after that the sorter concentrates on pinning down your top 26, then your top 52, then the rest. A full sort of 250 songs would take about 1,800 battles; 500 gets the top of the list mostly right.</p>
+    <div class="seg" id="budgetSeg">
+      <label><input type="radio" name="budget" value="100">100</label>
+      <label><input type="radio" name="budget" value="200">200</label>
+      <label><input type="radio" name="budget" value="300">300</label>
+      <label><input type="radio" name="budget" value="500" checked>500</label>
+      <label><input type="radio" name="budget" value="1000">1000</label>
+      <label><input type="radio" name="budget" value="2000">2000</label>
+    </div>
+  </div>
+
+  <div class="stack" style="gap:6px">
+    <label for="nameInput"><h2>Your name <span class="muted small" style="font-family:var(--body);font-weight:400">(optional, shown on your share link)</span></h2></label>
+    <input type="text" id="nameInput" maxlength="40" autocomplete="nickname" placeholder="e.g. Sam">
+  </div>
+
+  <div class="row">
+    <button class="primary" id="startBtn">Start sorting</button>
+    <span class="small muted">Progress saves in this browser and online, so you can close the tab and come back. You get a share link for your ranking.</span>
+  </div>
+</section>
+
+<!-- ============ BATTLE ============ -->
+<section id="battle" class="stack" hidden>
+  <div class="stack" style="gap:6px">
+    <div class="prog">
+      <h2 id="battleNum">Battle 1 of 500</h2>
+      <span class="muted small"><span id="battlePct">0% done</span> · <span class="sync"></span></span>
+    </div>
+    <p class="small muted" id="phaseText">Learning your album and style taste</p>
+    <div class="bar"><i id="battleBar"></i></div>
+  </div>
+
+  <p class="muted small">Which do you like better?</p>
+  <div class="arena">
+    <button class="song" id="songA"><span class="t"></span><span class="pill"><i class="dot"></i><span></span></span></button>
+    <div class="mid">
+      <button id="tieBtn">I like both</button>
+      <button id="skipBtn">No opinion</button>
+    </div>
+    <button class="song" id="songB"><span class="t"></span><span class="pill"><i class="dot"></i><span></span></span></button>
+  </div>
+
+  <div class="row" style="justify-content:space-between">
+    <button class="link" id="undoBtn">Undo last choice</button>
+    <button id="finishBtn">Stop and see ranking</button>
+  </div>
+  <div class="kb">
+    <span><kbd>←</kbd> left song</span><span><kbd>→</kbd> right song</span><span><kbd>B</kbd> both</span><span><kbd>N</kbd> no opinion</span><span><kbd>Z</kbd> undo</span>
+  </div>
+  <p class="small muted">Picking "no opinion" or "I like both" often weakens the result. Undo only removes your last choice; nothing else is lost.</p>
+</section>
+
+<!-- ============ RESULTS ============ -->
+<section id="results" class="stack" hidden>
+  <div class="hdr" style="margin-bottom:8px">
+    <p class="eyebrow">Your ranking</p>
+    <h1>Every song, in your order</h1>
+    <p class="muted small">Songs you never compared directly are placed by what you chose for musically similar songs: same album, same style, same tempo, same era. Exact ties are broken by how your choices went on the most similar songs, then by singles over deep cuts. The dots show how many times each song appeared in a battle. More battles tighten the order.</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b id="stChoices">0</b><span class="small muted">battles decided</span></div>
+    <div class="stat"><b id="stSeen">0</b><span class="small muted">songs compared directly</span></div>
+    <div class="stat"><b id="stTotal">0</b><span class="small muted">songs ranked</span></div>
+  </div>
+  <p class="sync small muted"></p>
+
+  <div class="note" id="shareBox" hidden>
+    <p><b>Share link.</b> <span class="small muted">Anyone with it can see this ranking. Only this browser can change it.</span></p>
+    <div class="row" style="margin-top:8px"><code class="url" id="shareUrl"></code><button id="shareCopy">Copy link</button></div>
+  </div>
+
+  <div class="row">
+    <button class="primary" id="moreBtn">Keep refining (+25 battles)</button>
+    <button id="copyBtn">Copy list</button>
+    <button class="link" id="restartBtn">Start over</button>
+  </div>
+
+  <div class="note" id="manualNote" hidden>
+    <p><b>You have reordered the list by hand.</b> The album table and the copied list follow your order. More battles update the suggestion but keep your edits.</p>
+    <div class="row" style="margin-top:8px"><button id="resetOrderBtn">Reset to suggested order</button></div>
+  </div>
+
+  <div class="stack" style="gap:10px">
+    <h2>Albums</h2>
+    <p class="small muted">Ranked by the positions of each album's songs in your list. Click a column to sort by it.</p>
+    <div class="tblwrap"><table class="alb-t"><thead><tr><th>#</th><th>Album</th><th><button data-k="mean">Mean rank</button></th><th><button data-k="median">Median rank</button></th><th><button data-k="top">In top 26</button></th><th>Songs</th></tr></thead><tbody id="albrank"></tbody></table></div>
+  </div>
+
+  <div class="stack" style="gap:10px">
+    <h2>Songs</h2>
+    <p class="small muted">This is the suggested order. Drag the handle to move a song, or use the arrows. Your edits are saved.</p>
+    <ol class="ranked" id="ranked"></ol>
+  </div>
+
+  <details><summary>Plain-text list</summary><textarea class="export" id="exportBox" readonly></textarea></details>
+</section>
+
+<!-- ============ SHARED VIEW ============ -->
+<section id="view" class="stack" hidden>
+  <div class="hdr" style="margin-bottom:8px">
+    <p class="eyebrow">Shared ranking</p>
+    <h1 id="viewTitle">Loading…</h1>
+    <p class="muted small" id="viewMeta"></p>
+  </div>
+  <div class="row"><a class="btn" href="/">Make your own ranking</a></div>
+  <div class="stack" style="gap:10px" id="viewAlbWrap" hidden>
+    <h2>Albums</h2>
+    <div class="tblwrap"><table class="alb-t"><thead><tr><th>#</th><th>Album</th><th><button data-k="mean">Mean rank</button></th><th><button data-k="median">Median rank</button></th><th><button data-k="top">In top 26</button></th><th>Songs</th></tr></thead><tbody id="viewAlb"></tbody></table></div>
+  </div>
+  <div class="stack" style="gap:10px" id="viewListWrap" hidden>
+    <h2>Songs</h2>
+    <ol class="ranked view" id="viewList"></ol>
+  </div>
+</section>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- Song library ----------------
+   Each song: "Title|tempo|style|single|era"  tempo U=upbeat M=mid B=ballad; style c country, p bright pop,
+   s synth/electronic, r rock/guitar, f folk/acoustic, q piano/strings ballad; single S or blank; era override optional.
+   Eras: 0 country (2006–2010), 1 pop (2012–2019), 2 folk (2020), 3 late (2022– ).
+*/
+const ALBUMS=[
+{key:'debut',name:'Taylor Swift',short:'Debut',year:2006,era:0,color:'#3f9a8a',songs:[
+"Tim McGraw|B|c|S","Picture to Burn|U|c|S","Teardrops on My Guitar|B|c|S","A Place in This World|M|c|","Cold as You|B|c|","The Outside|M|c|","Tied Together with a Smile|B|c|","Stay Beautiful|M|c|","Should've Said No|U|r|S","Mary's Song (Oh My My My)|M|c|","Our Song|U|c|S","I'm Only Me When I'm with You|U|c|","Invisible|B|q|","A Perfectly Good Heart|B|c|"]},
+{key:'fearless',name:'Fearless (Taylor’s Version)',short:'Fearless',year:2008,era:0,color:'#d1a21a',songs:[
+"Fearless|U|c|","Fifteen|M|c|S","Love Story|U|c|S","Hey Stephen|M|c|","White Horse|B|q|S","You Belong with Me|U|c|S","Breathe|B|c|","Tell Me Why|U|c|","You're Not Sorry|B|q|","The Way I Loved You|U|r|","Forever & Always|U|r|","The Best Day|B|c|","Change|U|r|S","Jump Then Fall|U|c|","Untouchable|B|q|","Come In with the Rain|M|c|","Superstar|B|c|","The Other Side of the Door|U|r|","Today Was a Fairytale|M|c|S","You All Over Me|M|f|","Mr. Perfectly Fine|U|c|S","We Were Happy|B|f|","That's When|M|c|","Don't You|M|p|","Bye Bye Baby|M|c|"]},
+{key:'speaknow',name:'Speak Now (Taylor’s Version)',short:'Speak Now',year:2010,era:0,color:'#8a4fbf',songs:[
+"Mine|U|c|S","Sparks Fly|U|r|S","Back to December|B|q|S","Speak Now|U|c|","Dear John|B|q|","Mean|U|c|S","The Story of Us|U|r|S","Never Grow Up|B|f|","Enchanted|M|r|","Better Than Revenge|U|r|","Innocent|B|q|","Haunted|U|r|","Last Kiss|B|q|","Long Live|M|r|","Ours|M|c|S","Superman|M|p|","Electric Touch|M|r|","When Emma Falls in Love|M|q|","I Can See You|U|r|S","Castles Crumbling|B|q|","Foolish One|M|c|","Timeless|M|c|"]},
+{key:'red',name:'Red (Taylor’s Version)',short:'Red',year:2012,era:1,color:'#c0322e',songs:[
+"State of Grace|U|r|","Red|U|r|S","Treacherous|M|f|","I Knew You Were Trouble|U|s|S","All Too Well|B|q|","22|U|p|S","I Almost Do|B|c|","We Are Never Ever Getting Back Together|U|p|S","Stay Stay Stay|U|c|","The Last Time|B|q|","Holy Ground|U|r|","Sad Beautiful Tragic|B|f|","The Lucky One|M|p|","Everything Has Changed|M|f|S","Starlight|U|p|","Begin Again|B|c|S","The Moment I Knew|B|q|","Come Back... Be Here|M|r|","Girl at Home|U|p|","Ronan|B|q|","Better Man|B|c|","Nothing New|B|f|","Babe|M|p|","Message in a Bottle|U|p|","I Bet You Think About Me|M|c|S","Forever Winter|M|r|","Run|B|f|","The Very First Night|U|p|","All Too Well (10 Minute Version)|B|q|S"]},
+{key:'1989',name:'1989 (Taylor’s Version)',short:'1989',year:2014,era:1,color:'#4b9fd8',songs:[
+"Welcome to New York|U|s|","Blank Space|U|p|S","Style|U|s|S","Out of the Woods|U|s|S","All You Had to Do Was Stay|U|p|","Shake It Off|U|p|S","I Wish You Would|U|s|","Bad Blood|U|p|S","Wildest Dreams|M|s|S","How You Get the Girl|U|p|","This Love|B|q|","I Know Places|U|s|","Clean|B|s|","Wonderland|U|s|","You Are in Love|B|s|","New Romantics|U|p|S","\"Slut!\"|M|s|","Say Don't Go|M|s|","Now That We Don't Talk|U|s|","Suburban Legends|U|s|","Is It Over Now?|M|s|S","Sweeter Than Fiction|U|p|"]},
+{key:'rep',name:'Reputation',short:'Reputation',year:2017,era:1,color:'#7b7a8c',songs:[
+"...Ready for It?|U|s|S","End Game|M|s|S","I Did Something Bad|U|s|","Don't Blame Me|M|s|","Delicate|M|s|S","Look What You Made Me Do|U|s|S","So It Goes...|M|s|","Gorgeous|M|s|S","Getaway Car|U|s|","King of My Heart|M|s|","Dancing with Our Hands Tied|U|s|","Dress|M|s|","This Is Why We Can't Have Nice Things|U|p|","Call It What You Want|M|s|S","New Year's Day|B|q|S"]},
+{key:'lover',name:'Lover',short:'Lover',year:2019,era:1,color:'#e57fb0',songs:[
+"I Forgot That You Existed|M|s|","Cruel Summer|U|s|S","Lover|B|q|S","The Man|U|p|S","The Archer|B|s|S","I Think He Knows|U|s|","Miss Americana & the Heartbreak Prince|M|s|","Paper Rings|U|r|","Cornelia Street|M|s|","Death by a Thousand Cuts|M|p|","London Boy|U|p|","Soon You'll Get Better|B|f|","False God|M|s|","You Need to Calm Down|U|p|S","Afterglow|M|s|","ME!|U|p|S","It's Nice to Have a Friend|B|f|","Daylight|M|s|"]},
+{key:'folklore',name:'folklore',short:'folklore',year:2020,era:2,color:'#8f968a',songs:[
+"the 1|M|f|","cardigan|M|f|S","the last great american dynasty|M|f|","exile|B|q|S","my tears ricochet|B|q|","mirrorball|M|f|","seven|M|f|","august|M|f|","this is me trying|B|f|","illicit affairs|B|f|","invisible string|M|f|","mad woman|M|q|","epiphany|B|q|","betty|M|f|S","peace|B|f|","hoax|B|q|","the lakes|B|f|"]},
+{key:'evermore',name:'evermore',short:'evermore',year:2020,era:2,color:'#a3682a',songs:[
+"willow|M|f|S","champagne problems|B|q|","gold rush|M|f|","'tis the damn season|M|f|","tolerate it|B|q|","no body, no crime|M|f|S","happiness|B|f|","dorothea|M|f|","coney island|B|f|","ivy|M|f|","cowboy like me|M|f|","long story short|U|f|","marjorie|B|f|","closure|M|f|","evermore|B|q|","right where you left me|M|f|","it's time to go|M|f|"]},
+{key:'midnights',name:'Midnights',short:'Midnights',year:2022,era:3,color:'#5b5fc7',songs:[
+"Lavender Haze|M|s|S","Maroon|M|s|","Anti-Hero|U|p|S","Snow on the Beach|B|f|","You're on Your Own, Kid|M|s|","Midnight Rain|M|s|","Question...?|M|s|","Vigilante Shit|M|s|","Bejeweled|U|p|S","Labyrinth|B|s|","Karma|U|p|S","Sweet Nothing|B|q|","Mastermind|M|s|","The Great War|M|f|","Bigger Than the Whole Sky|B|f|","Paris|U|p|","High Infidelity|M|f|","Glitch|M|s|","Would've, Could've, Should've|U|f|","Dear Reader|B|s|","Hits Different|U|p|","You're Losing Me|B|q|"]},
+{key:'ttpd',name:'The Tortured Poets Department',short:'TTPD',year:2024,era:3,color:'#a89576',songs:[
+"Fortnight|M|s|S","The Tortured Poets Department|M|s|","My Boy Only Breaks His Favorite Toys|M|s|","Down Bad|M|s|S","So Long, London|M|s|","But Daddy I Love Him|M|f|","Fresh Out the Slammer|M|f|","Florida!!!|U|r|","Guilty as Sin?|M|s|","Who's Afraid of Little Old Me?|M|s|","I Can Fix Him (No Really I Can)|B|f|","loml|B|q|","I Can Do It with a Broken Heart|U|p|S","The Smallest Man Who Ever Lived|M|s|","The Alchemy|M|s|","Clara Bow|B|f|","The Black Dog|M|q|","imgonnagetyouback|M|s|","The Albatross|B|f|","Chloe or Sam or Sophia or Marcus|B|f|","How Did It End?|B|q|","So High School|U|r|","I Hate It Here|M|f|","thanK you aIMee|M|f|","I Look in People's Windows|B|f|","The Prophecy|B|f|","Cassandra|M|q|","Peter|B|q|","The Bolter|M|f|","Robin|B|q|","The Manuscript|B|f|"]},
+{key:'showgirl',name:'The Life of a Showgirl',short:'Showgirl',year:2025,era:3,color:'#ee6a48',songs:[
+"The Fate of Ophelia|U|p|S","Elizabeth Taylor|M|p|","Opalite|U|p|S","Father Figure|M|p|","Eldest Daughter|B|q|","Ruin the Friendship|M|p|","Actually Romantic|M|r|","Wi$h Li$t|U|p|","Wood|U|p|","CANCELLED!|M|s|","Honey|M|p|","The Life of a Showgirl|U|p|"]},
+{key:'extras',name:'Non-album singles & soundtracks',short:'Non-album',year:0,era:1,color:'#8a8a8a',songs:[
+"Crazier|B|c||0","If This Was a Movie (Taylor’s Version)|M|r||0","Safe & Sound|B|f|","Eyes Open|U|r|","I Don't Wanna Live Forever|M|s|S","Beautiful Ghosts|B|q|","Christmas Tree Farm|U|p|S","Only the Young|U|p|","Carolina|B|f||2"]},
+];
+const TEMPO={U:0,M:1,B:2};
+const STYLE={c:0,p:1,s:2,r:3,f:4,q:5};
+const SONGS=[];
+const KEY2ID=new Map();
+const key=i=>ALBUMS[SONGS[i].album].key+':'+SONGS[i].track;
+ALBUMS.forEach((al,ai)=>al.songs.forEach((s,ti)=>{
+  const [title,tempo,style,single,era]=s.split('|');
+  SONGS.push({id:SONGS.length,title,album:ai,track:ti,era:era!==undefined&&era!==''?+era:al.era,tempo:TEMPO[tempo]??1,style:STYLE[style]??1,single:single==='S'?1:0});
+  KEY2ID.set(al.key+':'+ti,SONGS.length-1);
+}));
+
+/* ---------------- State ---------------- */
+const KEY='swift-sorter-v1';
+const API='/api';
+let state=null;     // {included:[keys], budget, name, history:[{a,b,r}], pair:[a,b]|null, manual:[ids]|null, cloud:{id,token,synced}|null}
+let active=[];      // song ids included
+let model=null;
+let counts=null;    // direct-comparison count per song id
+let asked=new Set();
+
+function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)); if(s&&s.history&&s.included) return s; }catch(e){} return null; }
+function persist(){ try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){} }
+function save(){ persist(); scheduleSync(); }
+
+/* ---------------- Cloud sync ----------------
+   Each sort gets its own record on the server (id + secret token kept in this browser).
+   Saves are debounced; battles are sent incrementally from the last synced index so undo stays cheap. */
+let syncTimer=null, syncing=false, syncDirty=false;
+function setSync(txt){ document.querySelectorAll('.sync').forEach(el=>{ el.textContent=txt; }); }
+function scheduleSync(){ if(!state) return; syncDirty=true; setSync('Saving…'); clearTimeout(syncTimer); syncTimer=setTimeout(()=>syncNow(),1200); }
+// If the tab closes while a save is pending, send it right away (keepalive lets it finish after unload).
+window.addEventListener('pagehide',()=>{ if(state&&syncDirty&&!syncing){ clearTimeout(syncTimer); syncNow({keepalive:true}); } });
+async function ensureCloud(){
+  if(state.cloud&&state.cloud.id) return true;
+  const r=await fetch(API+'/sorts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:state.name||null,budget:state.budget})});
+  if(!r.ok) throw new Error('create failed');
+  const d=await r.json();
+  state.cloud={id:d.id,token:d.token,synced:0}; persist();
+  return true;
+}
+async function syncNow(opts={}){
+  if(!state) return;
+  if(syncing){ syncDirty=true; return; }
+  syncing=true; syncDirty=false; setSync('Saving…');
+  try{
+    await ensureCloud();
+    const c=state.cloud, from=Math.min(c.synced,state.history.length);
+    const body={name:state.name||null,budget:state.budget,manual:!!state.manual,
+      state:{included:state.included,budget:state.budget,name:state.name||null,history:state.history,pair:state.pair,manual:state.manual},
+      ranking:currentOrder().map(key),from,
+      newBattles:state.history.slice(from).map(h=>({a:key(h.a),b:key(h.b),r:h.r}))};
+    const r=await fetch(API+'/sorts/'+c.id,{method:'PUT',keepalive:!!opts.keepalive,headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.token},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error('save failed');
+    c.synced=state.history.length; persist(); setSync('Saved online');
+  }catch(e){ setSync('Saved on this device only'); }
+  finally{ syncing=false; if(syncDirty) scheduleSync(); }
+}
+function clear(){ try{ localStorage.removeItem(KEY); }catch(e){} }
+
+/* ---------------- Model: hierarchical Bradley–Terry ----------------
+   score(song) = album + era + tempo + style + single·w + song deviation
+   Fitted by Adam on logistic loss over all recorded battles, with L2 priors.
+   Shared effects (album/era/tempo/style/single) carry what you said about musically
+   similar songs to songs you have not compared yet. */
+const LAM={alb:0.15,era:0.15,tmp:0.15,sty:0.15,sgl:0.15,b:0.4};
+function newModel(){
+  return {alb:new Float64Array(ALBUMS.length),era:new Float64Array(4),tmp:new Float64Array(3),sty:new Float64Array(6),sgl:0,b:new Float64Array(SONGS.length),
+          m:null,v:null,t:0};
+}
+function score(m,i){ const s=SONGS[i]; return m.alb[s.album]+m.era[s.era]+m.tmp[s.tempo]+m.sty[s.style]+s.single*m.sgl+m.b[i]; }
+const sig=x=>1/(1+Math.exp(-x));
+function observations(history){
+  const obs=[];
+  for(const h of history){
+    if(h.r==='a') obs.push([h.a,h.b,1]);
+    else if(h.r==='b') obs.push([h.b,h.a,1]);
+    else if(h.r==='t'){ obs.push([h.a,h.b,0.5]); obs.push([h.b,h.a,0.5]); }
+  }
+  return obs;
+}
+function fit(m,obs,steps){
+  const nA=ALBUMS.length,nE=4,nT=3,nS=6,nB=SONGS.length;
+  const P=nA+nE+nT+nS+1+nB; // flat parameter vector layout
+  if(!m.m){ m.m=new Float64Array(P); m.v=new Float64Array(P); }
+  const g=new Float64Array(P);
+  const ds=new Float64Array(nB);
+  const lr=0.08,b1=0.9,b2=0.999,eps=1e-8;
+  for(let step=0;step<steps;step++){
+    g.fill(0); ds.fill(0);
+    for(const [w,l,wt] of obs){
+      const d=score(m,w)-score(m,l);
+      const gr=wt*(sig(d)-1);      // d loss / d (s_w - s_l)
+      ds[w]+=gr; ds[l]-=gr;
+    }
+    for(let i=0;i<nB;i++){
+      const s=SONGS[i], v=ds[i];
+      if(v===0) continue;
+      g[s.album]+=v; g[nA+s.era]+=v; g[nA+nE+s.tempo]+=v; g[nA+nE+nT+s.style]+=v; g[nA+nE+nT+nS]+=v*s.single; g[nA+nE+nT+nS+1+i]+=v;
+    }
+    for(let a=0;a<nA;a++) g[a]+=LAM.alb*m.alb[a];
+    for(let e=0;e<nE;e++) g[nA+e]+=LAM.era*m.era[e];
+    for(let t=0;t<nT;t++) g[nA+nE+t]+=LAM.tmp*m.tmp[t];
+    for(let y=0;y<nS;y++) g[nA+nE+nT+y]+=LAM.sty*m.sty[y];
+    g[nA+nE+nT+nS]+=LAM.sgl*m.sgl;
+    for(let i=0;i<nB;i++) g[nA+nE+nT+nS+1+i]+=LAM.b*m.b[i];
+    m.t++;
+    const c1=1-Math.pow(b1,m.t), c2=1-Math.pow(b2,m.t);
+    const upd=(k)=>{ m.m[k]=b1*m.m[k]+(1-b1)*g[k]; m.v[k]=b2*m.v[k]+(1-b2)*g[k]*g[k]; return lr*(m.m[k]/c1)/(Math.sqrt(m.v[k]/c2)+eps); };
+    for(let a=0;a<nA;a++) m.alb[a]-=upd(a);
+    for(let e=0;e<nE;e++) m.era[e]-=upd(nA+e);
+    for(let t=0;t<nT;t++) m.tmp[t]-=upd(nA+nE+t);
+    for(let y=0;y<nS;y++) m.sty[y]-=upd(nA+nE+nT+y);
+    m.sgl-=upd(nA+nE+nT+nS);
+    for(let i=0;i<nB;i++) m.b[i]-=upd(nA+nE+nT+nS+1+i);
+  }
+}
+function rebuild(fromScratch){
+  if(fromScratch||!model) model=newModel();
+  counts=new Int32Array(SONGS.length); asked=new Set();
+  for(const h of state.history){ if(h.r!=='n'){counts[h.a]++;counts[h.b]++;} asked.add(pk(h.a,h.b)); }
+  fit(model,observations(state.history),fromScratch?700:200);
+}
+const pk=(a,b)=>a<b?a+'-'+b:b+'-'+a;
+
+/* ---------------- Pair selection ----------------
+   Phase 1 (first ~40 battles): spread across albums and unseen songs to learn broad taste.
+   Phase 2: focus on the top 26 — pairs inside or just outside the current top 26, until every
+            song near that line has been in at least 3 battles.
+   Phase 3: same for the top 52.  Phase 4: refine everywhere, still leaning to the top.
+   Within a phase, each candidate pair scores: outcome entropy (prefer coin-flips) + novelty
+   (prefer rarely-seen songs) + focus bonus (both songs in the window, close in rank). */
+const FOCUS_MIN_BATTLES=3, FOCUS_PAD=12, FOCUS_STEPS=[26,52];
+function entropy(p){ if(p<=0||p>=1) return 0; return -(p*Math.log2(p)+(1-p)*Math.log2(1-p)); }
+function focusWindow(ranked){
+  for(const W of FOCUS_STEPS){
+    const lim=Math.min(ranked.length,W+FOCUS_PAD);
+    for(let r=0;r<lim;r++) if(counts[ranked[r]]<FOCUS_MIN_BATTLES) return W;
+  }
+  return Infinity;
+}
+function currentPhase(){
+  if(state.history.length<40) return {name:'albums',W:0};
+  const sc=new Map(active.map(i=>[i,score(model,i)]));
+  const ranked=[...active].sort((x,y)=>sc.get(y)-sc.get(x));
+  const W=focusWindow(ranked);
+  return {name:W===26?'top26':W===52?'top52':'all',W};
+}
+function pickPair(){
+  const n=active.length; if(n<2) return null;
+  const sc=new Map(active.map(i=>[i,score(model,i)]));
+  const ranked=[...active].sort((x,y)=>sc.get(y)-sc.get(x));
+  const pos=new Map(ranked.map((i,r)=>[i,r]));
+  const early=state.history.length<40;
+  const W=early?0:focusWindow(ranked);
+  const inWin=W===Infinity?()=>true:W===0?()=>false:(i)=>pos.get(i)<W+FOCUS_PAD;
+  const cand=[];
+  for(let k=0;k<700;k++){ const i=active[Math.random()*n|0], j=active[Math.random()*n|0]; if(i!==j) cand.push([i,j]); }
+  for(let k=0;k<160;k++){ const u=Math.random(); const r=(W===Infinity?n*u*u:W>0?Math.min(n-1,(W+FOCUS_PAD+8)*u):n*u)|0; const d=1+(Math.random()*5|0); if(r+d<n) cand.push([ranked[r],ranked[r+d]]); }
+  let best=null,bestV=-1e9;
+  for(const [i,j] of cand){
+    if(asked.has(pk(i,j))) continue;
+    const p=sig(sc.get(i)-sc.get(j));
+    const diff=SONGS[i].album!==SONGS[j].album?1:0;
+    let v=entropy(p)+0.05*Math.random();
+    if(early){ v+=0.9*(1/(1+counts[i])+1/(1+counts[j]))+0.4*diff; }
+    else if(W===Infinity){ v+=0.6*(1/(1+counts[i])+1/(1+counts[j]))+0.1*diff+0.3*(1-Math.min(pos.get(i),pos.get(j))/n); }
+    else {
+      const wi=inWin(i), wj=inWin(j);
+      const nov=(wi?1:0.4)/(1+counts[i])+(wj?1:0.4)/(1+counts[j]);
+      v+=0.8*nov;
+      if(wi&&wj) v+=1.0+0.3*(Math.abs(pos.get(i)-pos.get(j))<=5?1:0);
+      else if(wi||wj) v+=Math.max(pos.get(i),pos.get(j))<W+FOCUS_PAD+30?0.5:0;
+    }
+    if(v>bestV){bestV=v;best=[i,j];}
+  }
+  if(!best) return null;
+  return Math.random()<0.5?best:[best[1],best[0]];
+}
+
+/* ---------------- UI ---------------- */
+const $=id=>document.getElementById(id);
+const screens={setup:$('setup'),battle:$('battle'),results:$('results'),view:$('view')};
+function show(name){ for(const k in screens) screens[k].hidden=(k!==name); window.scrollTo({top:0}); }
+let toastT; function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1800); }
+
+function renderSetup(){
+  const box=$('albums'); box.innerHTML='';
+  ALBUMS.forEach(al=>{
+    const l=document.createElement('label'); l.className='alb';
+    l.innerHTML=`<input type="checkbox" id="alb-${al.key}" value="${al.key}" checked><i class="dot" style="--c:${al.color}"></i><span class="name">${al.name}${al.year?` <span class="muted small">${al.year}</span>`:''}</span><span class="cnt">${al.songs.length}</span>`;
+    box.appendChild(l);
+  });
+  box.addEventListener('change',updateCount);
+  updateCount();
+  const saved=load();
+  if(saved&&saved.history.length>0){
+    $('resumeBox').hidden=false;
+    $('resumeText').textContent=`${saved.history.length} of ${saved.budget} battles done across ${saved.included.length} albums${saved.name?` for ${saved.name}`:''}.`;
+  }
+}
+function selectedAlbums(){ return [...document.querySelectorAll('#albums input:checked')].map(i=>i.value); }
+function updateCount(){ const keys=new Set(selectedAlbums()); const n=SONGS.filter(s=>keys.has(ALBUMS[s.album].key)).length; $('songCount').textContent=`${n} songs selected.`; $('startBtn').disabled=n<2; }
+$('allBtn').onclick=()=>{document.querySelectorAll('#albums input').forEach(i=>i.checked=true);updateCount();};
+$('noneBtn').onclick=()=>{document.querySelectorAll('#albums input').forEach(i=>i.checked=false);updateCount();};
+
+function begin(s){
+  state=s;
+  const keys=new Set(state.included);
+  active=SONGS.filter(x=>keys.has(ALBUMS[x.album].key)).map(x=>x.id);
+  rebuild(true);
+  if(!state.pair) state.pair=pickPair();
+  save();
+  if(state.history.length>=state.budget) showResults(); else renderBattle();
+}
+$('startBtn').onclick=()=>{
+  const budget=+document.querySelector('input[name=budget]:checked').value;
+  const name=$('nameInput').value.trim().slice(0,40);
+  begin({included:selectedAlbums(),budget,name,history:[],pair:null,manual:null,cloud:null});
+};
+$('resumeBtn').onclick=()=>{ const s=load(); if(s) begin(s); };
+$('discardBtn').onclick=()=>{ clear(); $('resumeBox').hidden=true; toast('Previous sort discarded'); };
+
+function fillSong(btn,id){
+  const s=SONGS[id], al=ALBUMS[s.album];
+  btn.querySelector('.t').textContent=s.title;
+  btn.querySelector('.pill .dot').style.setProperty('--c',al.color);
+  btn.querySelector('.pill span').textContent=al.short+(al.year?` · ${al.year}`:'');
+  btn.dataset.id=id;
+}
+function renderBattle(){
+  show('battle');
+  if(!state.pair){ showResults(); return; }
+  const done=state.history.length, total=state.budget;
+  $('battleNum').textContent=`Battle ${done+1} of ${total}`;
+  const pct=Math.round(100*done/total);
+  $('battlePct').textContent=`${pct}% done`;
+  $('battleBar').style.width=pct+'%';
+  const ph=currentPhase().name;
+  $('phaseText').textContent={albums:'Learning your album and style taste',top26:'Pinning down your top 26',top52:'Pinning down your top 52',all:'Refining the rest of the list'}[ph];
+  fillSong($('songA'),state.pair[0]); fillSong($('songB'),state.pair[1]);
+  $('undoBtn').disabled=done===0;
+}
+function answer(r){
+  if(!state.pair) return;
+  const [a,b]=state.pair;
+  state.history.push({a,b,r});
+  if(r!=='n'){counts[a]++;counts[b]++;}
+  asked.add(pk(a,b));
+  fit(model,observations(state.history),200);
+  if(state.history.length>=state.budget){ state.pair=null; save(); showResults(); return; }
+  state.pair=pickPair(); save(); renderBattle();
+}
+function undo(){
+  if(!state.history.length) return;
+  const h=state.history.pop();
+  state.pair=[h.a,h.b];
+  if(state.cloud) state.cloud.synced=Math.min(state.cloud.synced,state.history.length);
+  rebuild(true); save(); renderBattle(); toast('Last choice removed');
+}
+$('songA').onclick=()=>answer('a');
+$('songB').onclick=()=>answer('b');
+$('tieBtn').onclick=()=>answer('t');
+$('skipBtn').onclick=()=>answer('n');
+$('undoBtn').onclick=undo;
+$('finishBtn').onclick=()=>{ showResults(); };
+document.addEventListener('keydown',e=>{
+  if(screens.battle.hidden||e.metaKey||e.ctrlKey||e.altKey) return;
+  const k=e.key.toLowerCase();
+  if(e.key==='ArrowLeft'||k==='1'){answer('a');e.preventDefault();}
+  else if(e.key==='ArrowRight'||k==='2'){answer('b');e.preventDefault();}
+  else if(k==='b') answer('t');
+  else if(k==='n') answer('n');
+  else if(k==='z') undo();
+});
+
+/* Tie-breaking for songs the model scores identically (never compared, same album/era/tempo/style/single):
+   1. musical correlation: similarity-weighted average of the per-song deviations of songs you did compare,
+      similarity = same album, same style, same tempo, same era, same single status, and a small
+      bonus for being next to each other on the tracklist
+   2. singles before deep cuts, then album and tracklist order */
+function similarity(s,t){
+  let w=0;
+  if(t.album===s.album){ w+=1; if(Math.abs(t.track-s.track)===1) w+=0.15; }
+  if(t.style===s.style) w+=0.8;
+  if(t.tempo===s.tempo) w+=0.5;
+  if(t.era===s.era) w+=0.3;
+  if(t.single===s.single) w+=0.2;
+  return w;
+}
+function tieBreak(sc){
+  const tb=new Map();
+  for(const i of active){
+    const s=SONGS[i]; let num=0,den=0;
+    for(const j of active){
+      if(j===i||counts[j]===0) continue;
+      const w=similarity(s,SONGS[j]);
+      if(w>0){ num+=w*model.b[j]; den+=w; }
+    }
+    tb.set(i,den>0?num/den:0);
+  }
+  return tb;
+}
+function finalRanking(){
+  const sc=new Map(active.map(i=>[i,score(model,i)]));
+  const tb=tieBreak(sc);
+  const ranked=[...active].sort((x,y)=>{
+    let d=sc.get(y)-sc.get(x); if(Math.abs(d)>1e-9) return d;
+    d=tb.get(y)-tb.get(x); if(Math.abs(d)>1e-9) return d;
+    d=SONGS[y].single-SONGS[x].single; if(d) return d;
+    d=SONGS[x].album-SONGS[y].album; if(d) return d;
+    return SONGS[x].track-SONGS[y].track;
+  });
+  return {sc,ranked};
+}
+let albSort='mean';
+let viewOrder=null;
+function renderAlbums(ranked,tbodyId='albrank'){
+  const pos=new Map(ranked.map((i,idx)=>[i,idx+1]));
+  const byAlb=new Map();
+  for(const i of ranked){ const a=SONGS[i].album; if(!byAlb.has(a)) byAlb.set(a,[]); byAlb.get(a).push(pos.get(i)); }
+  const rows=[...byAlb].map(([a,v])=>{ v.sort((x,y)=>x-y); const m=v.length%2?v[(v.length-1)/2]:(v[v.length/2-1]+v[v.length/2])/2;
+    return {a,n:v.length,mean:v.reduce((x,y)=>x+y,0)/v.length,median:m,top:v.filter(p=>p<=26).length}; });
+  rows.sort((x,y)=>albSort==='top'?(y.top-x.top||x.mean-y.mean):(x[albSort]-y[albSort]||x.mean-y.mean));
+  const ar=$(tbodyId); ar.innerHTML='';
+  rows.forEach((r,idx)=>{ const al=ALBUMS[r.a];
+    ar.insertAdjacentHTML('beforeend',`<tr><td>${idx+1}</td><td><i class="dot" style="--c:${al.color}"></i>${al.short}</td><td>${r.mean.toFixed(1)}</td><td>${r.median}</td><td>${r.top}</td><td class="muted">${r.n}</td></tr>`);
+  });
+  document.querySelectorAll('.alb-t th button').forEach(b=>b.classList.toggle('on',b.dataset.k===albSort));
+}
+/* Current order: the user's hand-sorted order if they made one (and it still matches the song set), else the model's suggestion. */
+function currentOrder(){
+  if(state.manual&&state.manual.length===active.length){
+    const set=new Set(active); if(state.manual.every(i=>set.has(i))) return state.manual.slice();
+  }
+  return finalRanking().ranked;
+}
+document.querySelectorAll('.alb-t th button').forEach(b=>b.onclick=()=>{ albSort=b.dataset.k; if(viewOrder) renderAlbums(viewOrder,'viewAlb'); else if(state) renderAlbums(currentOrder()); });
+function showResults(){
+  show('results');
+  const order=currentOrder();
+  const decided=state.history.filter(h=>h.r!=='n').length;
+  $('stChoices').textContent=decided;
+  $('stSeen').textContent=active.filter(i=>counts[i]>0).length;
+  $('stTotal').textContent=active.length;
+  renderAlbums(order);
+  renderList(order);
+  $('manualNote').hidden=!state.manual;
+  const hasCloud=!!(state.cloud&&state.cloud.id);
+  $('shareBox').hidden=!hasCloud;
+  if(hasCloud) $('shareUrl').textContent=`${location.origin}/s/${state.cloud.id}`;
+  scheduleSync();
+}
+$('shareCopy').onclick=()=>{
+  const txt=$('shareUrl').textContent;
+  const fallback=()=>{ const r=document.createRange(); r.selectNodeContents($('shareUrl')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast('Link selected, press copy'); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>toast('Link copied')).catch(fallback); } else fallback();
+};
+
+/* ---------------- Read-only shared view (/s/:id) ---------------- */
+async function loadView(id){
+  show('view');
+  try{
+    const r=await fetch(API+'/sorts/'+id);
+    if(!r.ok) throw new Error('not found');
+    const d=await r.json();
+    const who=d.name?`${d.name}\u2019s`:'A fan\u2019s';
+    if(!d.ranking||!d.ranking.length){ $('viewTitle').textContent=`${who} ranking is not ready yet`; $('viewMeta').textContent=`${d.battles} battles answered so far.`; return; }
+    viewOrder=d.ranking.map(k=>KEY2ID.get(k)).filter(i=>i!==undefined);
+    $('viewTitle').textContent=`${who} ranking`;
+    $('viewMeta').textContent=`${d.battles} battles · ${viewOrder.length} songs${d.manual?' · reordered by hand':''} · updated ${new Date(d.updated_at).toLocaleDateString()}`;
+    renderAlbums(viewOrder,'viewAlb');
+    const ol=$('viewList'); ol.innerHTML='';
+    viewOrder.forEach((i,idx)=>{ const s=SONGS[i], al=ALBUMS[s.album];
+      ol.insertAdjacentHTML('beforeend',`<li><span class="n">${idx+1}</span><div class="title"><span>${esc(s.title)}</span><span class="pill"><i class="dot" style="--c:${al.color}"></i>${al.short}</span></div></li>`); });
+    $('viewAlbWrap').hidden=false; $('viewListWrap').hidden=false;
+  }catch(e){ $('viewTitle').textContent='Could not load this ranking'; $('viewMeta').textContent='Check the link, or try again in a moment.'; }
+}
+function renderList(order){
+  const ol=$('ranked'); ol.innerHTML='';
+  order.forEach((i,idx)=>{
+    const s=SONGS[i], al=ALBUMS[s.album], c=counts[i];
+    const dots=[0,1,2,3].map(k=>`<i class="${c>k?'on':''}"></i>`).join('');
+    const lab=c===0?'inferred':c>4?`${c} battles`:'';
+    ol.insertAdjacentHTML('beforeend',`<li data-id="${i}"><button class="handle" aria-label="Drag to reorder ${esc(s.title)}">&#8942;&#8942;</button><span class="n">${idx+1}</span><div class="title"><span>${esc(s.title)}</span><span class="pill"><i class="dot" style="--c:${al.color}"></i>${al.short}</span></div><div class="conf" title="${c} direct battle${c===1?'':'s'}">${dots}<em>${lab}</em></div><div class="nudge"><button data-mv="-1" aria-label="Move up">&#9650;</button><button data-mv="1" aria-label="Move down">&#9660;</button></div></li>`);
+  });
+  refreshOrderViews(order);
+}
+function refreshOrderViews(order){
+  const ol=$('ranked');
+  [...ol.children].forEach((li,idx)=>li.querySelector('.n').textContent=idx+1);
+  $('exportBox').value=order.map((i,idx)=>`${idx+1}. ${SONGS[i].title} (${ALBUMS[SONGS[i].album].short})`).join('\n');
+}
+function commitOrder(){
+  const order=[...$('ranked').children].map(li=>+li.dataset.id);
+  state.manual=order; save();
+  refreshOrderViews(order); renderAlbums(order);
+  $('manualNote').hidden=false;
+}
+$('ranked').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-mv]'); if(!b) return;
+  const li=b.closest('li'), ol=li.parentElement;
+  if(b.dataset.mv==='-1'&&li.previousElementSibling) ol.insertBefore(li,li.previousElementSibling);
+  else if(b.dataset.mv==='1'&&li.nextElementSibling) ol.insertBefore(li.nextElementSibling,li);
+  else return;
+  commitOrder(); b.focus();
+});
+let drag=null;
+$('ranked').addEventListener('pointerdown',e=>{
+  const hd=e.target.closest('.handle'); if(!hd) return;
+  drag={li:hd.closest('li')}; drag.li.classList.add('dragging');
+  try{ hd.setPointerCapture(e.pointerId); }catch(err){}
+  e.preventDefault();
+});
+$('ranked').addEventListener('pointermove',e=>{
+  if(!drag) return;
+  const ol=$('ranked');
+  if(e.clientY<70) window.scrollBy(0,-12); else if(e.clientY>window.innerHeight-70) window.scrollBy(0,12);
+  const el=document.elementFromPoint(e.clientX,e.clientY); const over=el&&el.closest('li');
+  if(!over||over===drag.li||over.parentElement!==ol) return;
+  const r=over.getBoundingClientRect();
+  if(e.clientY<r.top+r.height/2) ol.insertBefore(drag.li,over); else ol.insertBefore(drag.li,over.nextSibling);
+});
+function endDrag(){ if(!drag) return; drag.li.classList.remove('dragging'); drag=null; commitOrder(); }
+$('ranked').addEventListener('pointerup',endDrag);
+$('ranked').addEventListener('pointercancel',endDrag);
+$('resetOrderBtn').onclick=()=>{ state.manual=null; save(); showResults(); toast('Back to the suggested order'); };
+function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+$('moreBtn').onclick=()=>{ state.budget=state.history.length+25; state.pair=pickPair(); save(); renderBattle(); };
+$('copyBtn').onclick=()=>{
+  const txt=$('exportBox').value;
+  const fallback=()=>{ const d=$('exportBox').parentElement; d.open=true; $('exportBox').focus(); $('exportBox').select(); toast('Select and copy the text below'); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>toast('List copied')).catch(fallback); } else fallback();
+};
+$('restartBtn').onclick=()=>{ clear(); state=null; $('resumeBox').hidden=true; show('setup'); toast('Sort cleared'); };
+
+/* ---------------- Boot ---------------- */
+const shared=location.pathname.match(/^\/s\/([a-z0-9]+)\/?$/i);
+if(shared) loadView(shared[1]);
+else { renderSetup(); show('setup'); }
+</script>
+</body>
+</html>

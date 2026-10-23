@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "swiftsongsorter",
+  "account_id": "da7a2954edc68888dc5f7cda1675f778",
+  "workers_dev": true,
+  "main": "src/worker.js",
+  "compatibility_date": "2025-10-01",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "swift-song-sorter",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Custom domain: add the domain to your Cloudflare account, then uncomment.
+  // "routes": [{ "pattern": "swiftsongsorter.com", "custom_domain": true }],
+  "observability": { "enabled": true }
+}
