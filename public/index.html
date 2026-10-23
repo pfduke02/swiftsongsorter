@@ -258,6 +258,18 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
     <button class="link" id="restartBtn">Start over</button>
   </div>
 
+  <div class="stack" style="gap:10px" id="overlapWrap">
+    <h2>How aligned are you?</h2>
+    <p class="small muted">Scores compare how far each song sits between two lists, weighted so the top of the list counts most, and scaled against a random list: 100 means identical, 0 means no closer than random.</p>
+    <div class="cmp-stats" id="overlapCards"><p class="small muted">Working it out…</p></div>
+    <div class="ocard" style="flex:none;max-width:100%">
+      <span class="who">With a friend</span>
+      <span class="small muted">Send them your share link above. When they finish, paste their share link here.</span>
+      <div class="row"><input type="text" id="friendLink" placeholder="https://…/s/abc123"><button class="primary" id="friendBtn">See alignment</button></div>
+      <div id="friendOut"></div>
+    </div>
+  </div>
+
   <div class="note" id="manualNote" hidden>
     <p><b>You have reordered the list by hand.</b> The album table and the copied list follow your order. More battles update the suggestion but keep your edits.</p>
     <div class="row" style="margin-top:8px"><button id="resetOrderBtn">Reset to suggested order</button></div>
@@ -276,12 +288,6 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
   </div>
 
   <details><summary>Plain-text list</summary><textarea class="export" id="exportBox" readonly></textarea></details>
-
-  <div class="stack" style="gap:10px" id="overlapWrap">
-    <h2>Overlap</h2>
-    <p class="small muted">Match is based on how far each song sits between the two lists, weighted so the top of the list counts most, and scaled against a random list: 100 means identical, 0 means no closer than random.</p>
-    <div class="cmp-stats" id="overlapCards"><p class="small muted">Working it out…</p></div>
-  </div>
 
   <div class="stack" style="gap:10px" id="compareWrap">
     <h2>Compare in detail</h2>
@@ -429,6 +435,7 @@ async function syncNow(opts={}){
     const r=await fetch(API+'/sorts/'+c.id,{method:'PUT',keepalive:!!opts.keepalive,headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.token},body:JSON.stringify(body)});
     if(!r.ok) throw new Error('save failed');
     c.synced=state.history.length; persist(); setSync('Saved online');
+    if(!screens.results.hidden) refreshShareBox();
   }catch(e){ setSync('Saved on this device only'); }
   finally{ syncing=false; if(syncDirty) scheduleSync(); }
 }
@@ -742,9 +749,7 @@ function showResults(){
   renderAlbums(order);
   renderList(order);
   $('manualNote').hidden=!state.manual;
-  const hasCloud=!!(state.cloud&&state.cloud.id);
-  $('shareBox').hidden=!hasCloud;
-  if(hasCloud) $('shareUrl').textContent=`${location.origin}/s/${state.cloud.id}`;
+  refreshShareBox();
   populateListOptions().then(renderOverlapCards);
   scheduleSync();
 }
@@ -853,6 +858,14 @@ $('cmpBtn').onclick=async()=>{
        renderComparison(out,compareRankings(currentOrder(),o.ids),o.label,o.extra); }
   catch(e){ out.innerHTML=`<p class="small muted">${esc(e.message)}</p>`; }
 };
+$('friendBtn').onclick=async()=>{
+  const out=$('friendOut'); out.innerHTML='<p class="small muted">Looking up their list…</p>';
+  try{ const o=await fetchOtherRanking('link',$('friendLink').value); const res=compareRankings(currentOrder(),o.ids);
+    if(!res) throw new Error('Not enough songs in common');
+    out.innerHTML=`<div class="row" style="align-items:baseline;gap:10px"><b style="font-family:var(--display);font-size:1.8rem">${res.topMatch.toFixed(0)}%</b><span class="small muted">top-weighted match with ${esc(o.label)} · ${res.top26.hit} of their top 26 in yours · their top 26 average #${res.theirTopAvg.toFixed(0)} in yours</span></div><div class="row"><button data-cmp="link">Full comparison</button></div>`;
+    out.querySelector('button[data-cmp]').onclick=()=>{ $('cmpSource').value='link'; $('cmpSource').onchange(); $('cmpLink').value=$('friendLink').value; $('cmpBtn').click(); $('compareWrap').scrollIntoView({behavior:'smooth',block:'start'}); };
+  }catch(e){ out.innerHTML=`<p class="small muted">${esc(e.message)}</p>`; }
+};
 $('viewCmpBtn').onclick=()=>{
   const saved=load(); if(!saved||!viewOrder) return;
   // Rebuild my ranking from the saved state without touching the view.
@@ -860,6 +873,12 @@ $('viewCmpBtn').onclick=()=>{
   const mine=currentOrder(); state=null;
   renderComparison($('viewCmpOut'),compareRankings(mine,viewOrder),$('viewTitle').textContent.replace(/\u2019s ranking$/,'').replace(/,.*$/,''),'');
 };
+
+function refreshShareBox(){
+  const hasCloud=!!(state&&state.cloud&&state.cloud.id);
+  $('shareBox').hidden=!hasCloud;
+  if(hasCloud) $('shareUrl').textContent=`${location.origin}/s/${state.cloud.id}`;
+}
 
 /* ---------------- Read-only view of a reference list (/l/:id) ---------------- */
 async function loadListView(id){
@@ -875,7 +894,7 @@ async function loadListView(id){
     viewOrder.forEach((i,idx)=>{ const s=SONGS[i], al=ALBUMS[s.album];
       ol.insertAdjacentHTML('beforeend',`<li><span class="n">${idx+1}</span><div class="title"><span>${esc(s.title)}</span><span class="pill"><i class="dot" style="--c:${al.color}"></i>${al.short}</span></div></li>`); });
     $('viewAlbWrap').hidden=false; $('viewListWrap').hidden=false;
-    const mineSaved=load(); $('viewCmpBtn').hidden=!(mineSaved&&mineSaved.history&&mineSaved.history.length>0);
+    autoAlign(L.short||L.name);
   }catch(e){ $('viewTitle').textContent='Could not load this list'; $('viewMeta').textContent='Check the link, or try again in a moment.'; }
 }
 
@@ -896,8 +915,18 @@ async function loadView(id){
     viewOrder.forEach((i,idx)=>{ const s=SONGS[i], al=ALBUMS[s.album];
       ol.insertAdjacentHTML('beforeend',`<li><span class="n">${idx+1}</span><div class="title"><span>${esc(s.title)}</span><span class="pill"><i class="dot" style="--c:${al.color}"></i>${al.short}</span></div></li>`); });
     $('viewAlbWrap').hidden=false; $('viewListWrap').hidden=false;
-    const mineSaved=load(); $('viewCmpBtn').hidden=!(mineSaved&&mineSaved.history&&mineSaved.history.length>0);
+    autoAlign(d.name||'this person');
   }catch(e){ $('viewTitle').textContent='Could not load this ranking'; $('viewMeta').textContent='Check the link, or try again in a moment.'; }
+}
+/* On a shared or reference list page: if this browser has its own sort, show the alignment right away. */
+function autoAlign(label){
+  const mineSaved=load(); const has=!!(mineSaved&&mineSaved.history&&mineSaved.history.length>0);
+  $('viewCmpBtn').hidden=true;
+  if(!has){ $('viewCmpOut').innerHTML=`<div class="note"><p><b>Want to see how aligned you are with ${esc(label)}?</b> <span class="small muted">Make your own ranking first, then open this link again in the same browser.</span></p></div>`; return; }
+  state=mineSaved; const keys=new Set(state.included); active=SONGS.filter(x=>keys.has(ALBUMS[x.album].key)).map(x=>x.id); rebuild(true);
+  const mine=currentOrder(); state=null;
+  $('viewCmpOut').innerHTML=`<h2>Your alignment with ${esc(label)}</h2><div id="viewCmpInner"></div>`;
+  renderComparison($('viewCmpInner'),compareRankings(mine,viewOrder),label,'');
 }
 function renderList(order){
   const ol=$('ranked'); ol.innerHTML='';
