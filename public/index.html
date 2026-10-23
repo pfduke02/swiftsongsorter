@@ -88,14 +88,12 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .mid{display:flex;flex-direction:column;gap:10px;justify-content:center}
 .mid button{min-width:130px}
 .kb{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.8rem;margin-top:10px}
+@media (max-width:560px){.kb{display:none}}
 kbd{font-family:var(--body);font-size:.75rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--surface)}
 
 /* results */
 .stats{display:flex;gap:24px;flex-wrap:wrap}
 .stat b{font-family:var(--display);font-size:1.6rem;font-weight:600;display:block;line-height:1.1;font-variant-numeric:tabular-nums}
-.albrank{display:grid;grid-template-columns:auto 1fr auto;gap:6px 12px;align-items:center}
-.albrank .b{height:10px;border-radius:5px;background:var(--c);opacity:.85;min-width:4px}
-.albrank .v{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.8rem;text-align:right}
 .ranked{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
 .ranked li{display:grid;grid-template-columns:auto 3ch 1fr auto auto;gap:10px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);background:var(--bg)}
 .ranked:not(.view) li{cursor:grab;touch-action:pan-y}
@@ -323,7 +321,7 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
     <h1 id="viewTitle">Loading…</h1>
     <p class="muted small" id="viewMeta"></p>
   </div>
-  <div class="row"><a class="btn" href="/">Make your own ranking</a><button id="viewCmpBtn" hidden>Compare with my ranking</button></div>
+  <div class="row"><a class="btn" href="/">Make your own ranking</a></div>
   <div id="viewCmpOut" class="stack" style="gap:10px"></div>
   <div class="stack" style="gap:10px" id="viewAlbWrap" hidden>
     <h2>Albums</h2>
@@ -575,6 +573,11 @@ function pickPair(){
 const $=id=>document.getElementById(id);
 const screens={setup:$('setup'),battle:$('battle'),results:$('results'),view:$('view')};
 function show(name){ for(const k in screens) screens[k].hidden=(k!==name); window.scrollTo({top:0}); }
+/* Copy to the clipboard; where that is refused, select the text so the person can copy it themselves. */
+function copyText(txt,el,doneMsg){
+  const fallback=()=>{ if(el.select){ el.focus(); el.select(); } else { const r=document.createRange(); r.selectNodeContents(el); const s=getSelection(); s.removeAllRanges(); s.addRange(r); } toast('Selected, press copy'); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(()=>toast(doneMsg)).catch(fallback); else fallback();
+}
 let toastT; function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1800); }
 
 function renderSetup(){
@@ -663,8 +666,7 @@ $('saveBtn').onclick=async()=>{
   if(state.cloud&&state.cloud.id){ $('resumeUrl').textContent=`${location.origin}/r/${state.cloud.id}#${state.cloud.token}`; $('saveBox').hidden=false; toast('Progress saved online'); }
   else toast('Could not reach the server; progress is saved on this device');
 };
-$('resumeCopy').onclick=()=>{ const txt=$('resumeUrl').textContent; const fb=()=>{ const r=document.createRange(); r.selectNodeContents($('resumeUrl')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast('Link selected, press copy'); };
-  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(()=>toast('Resume link copied')).catch(fb); else fb(); };
+$('resumeCopy').onclick=()=>copyText($('resumeUrl').textContent,$('resumeUrl'),'Resume link copied');
 async function resumeFromLink(id,token){
   try{
     const r=await fetch(API+'/sorts/'+id+'/state',{headers:{Authorization:'Bearer '+token}});
@@ -763,11 +765,7 @@ function showResults(){
   populateListOptions().then(renderOverlapCards);
   scheduleSync();
 }
-$('shareCopy').onclick=()=>{
-  const txt=$('shareUrl').textContent;
-  const fallback=()=>{ const r=document.createRange(); r.selectNodeContents($('shareUrl')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast('Link selected, press copy'); };
-  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>toast('Link copied')).catch(fallback); } else fallback();
-};
+$('shareCopy').onclick=()=>copyText($('shareUrl').textContent,$('shareUrl'),'Link copied');
 
 /* ---------------- Comparing two rankings ----------------
    Both lists are cut down to the songs they share and re-ranked. For each song we take the distance
@@ -876,13 +874,6 @@ $('friendBtn').onclick=async()=>{
     out.querySelector('button[data-cmp]').onclick=()=>{ $('cmpSource').value='link'; $('cmpSource').onchange(); $('cmpLink').value=$('friendLink').value; $('cmpBtn').click(); $('compareWrap').scrollIntoView({behavior:'smooth',block:'start'}); };
   }catch(e){ out.innerHTML=`<p class="small muted">${esc(e.message)}</p>`; }
 };
-$('viewCmpBtn').onclick=()=>{
-  const saved=load(); if(!saved||!viewOrder) return;
-  // Rebuild my ranking from the saved state without touching the view.
-  state=saved; const keys=new Set(state.included); active=SONGS.filter(x=>keys.has(ALBUMS[x.album].key)).map(x=>x.id); rebuild(true);
-  const mine=currentOrder(); state=null;
-  renderComparison($('viewCmpOut'),compareRankings(mine,viewOrder),$('viewTitle').textContent.replace(/\u2019s ranking$/,'').replace(/,.*$/,''),'');
-};
 
 function refreshShareBox(){
   const hasCloud=!!(state&&state.cloud&&state.cloud.id);
@@ -931,7 +922,6 @@ async function loadView(id){
 /* On a shared or reference list page: if this browser has its own sort, show the alignment right away. */
 function autoAlign(label,pron='their'){
   const mineSaved=load(); const has=!!(mineSaved&&mineSaved.history&&mineSaved.history.length>0);
-  $('viewCmpBtn').hidden=true;
   if(!has){ $('viewCmpOut').innerHTML=`<div class="note"><p><b>Want to see how aligned you are with ${esc(label)}?</b> <span class="small muted">Make your own ranking first, then open this link again in the same browser.</span></p></div>`; return; }
   state=mineSaved; const keys=new Set(state.included); active=SONGS.filter(x=>keys.has(ALBUMS[x.album].key)).map(x=>x.id); rebuild(true);
   const mine=currentOrder(); state=null;
@@ -949,8 +939,7 @@ function renderList(order){
   refreshOrderViews(order);
 }
 function refreshOrderViews(order){
-  const ol=$('ranked');
-  [...ol.children].forEach((li,idx)=>li.querySelector('.n').textContent=idx+1);
+  renumber();
   $('exportBox').value=order.map((i,idx)=>`${idx+1}. ${SONGS[i].title} (${ALBUMS[SONGS[i].album].short})`).join('\n');
 }
 function commitOrder(){
@@ -1006,11 +995,7 @@ $('ranked').addEventListener('dragstart',e=>e.preventDefault());
 $('resetOrderBtn').onclick=()=>{ state.manual=null; save(); showResults(); toast('Back to the suggested order'); };
 function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 $('moreBtn').onclick=()=>{ state.budget=state.history.length+25; state.pair=pickPair(); save(); renderBattle(); };
-$('copyBtn').onclick=()=>{
-  const txt=$('exportBox').value;
-  const fallback=()=>{ const d=$('exportBox').parentElement; d.open=true; $('exportBox').focus(); $('exportBox').select(); toast('Select and copy the text below'); };
-  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>toast('List copied')).catch(fallback); } else fallback();
-};
+$('copyBtn').onclick=()=>{ $('exportBox').parentElement.open=true; copyText($('exportBox').value,$('exportBox'),'List copied'); };
 $('restartBtn').onclick=()=>{ clear(); state=null; $('resumeBox').hidden=true; show('setup'); toast('Sort cleared'); };
 
 /* ---------------- Boot ---------------- */
