@@ -279,7 +279,7 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
 
   <div class="stack" style="gap:10px" id="overlapWrap">
     <h2>Overlap</h2>
-    <p class="small muted">Top-weighted match: 100 means identical lists, about 20 means no relation. Agreement near the top of the lists counts far more than agreement near the bottom.</p>
+    <p class="small muted">Match is based on how far each song sits between the two lists, weighted so the top of the list counts most, and scaled against a random list: 100 means identical, 0 means no closer than random.</p>
     <div class="cmp-stats" id="overlapCards"><p class="small muted">Working it out…</p></div>
   </div>
 
@@ -755,21 +755,26 @@ $('shareCopy').onclick=()=>{
 };
 
 /* ---------------- Comparing two rankings ----------------
-   Both lists are cut down to the songs they share, re-ranked, then:
-   match  = 100 * (1 - mean |rank difference| / (n/2))  → 100 identical, ~33 unrelated, 0 reversed
-   rho    = Spearman rank correlation
-   topK   = how many of the other list's top K are also in yours */
+   Both lists are cut down to the songs they share and re-ranked. For each song we take the distance
+   between its two positions. Distances are averaged with weights that decay by rank (0.97^rank, so a
+   song at #1 counts about 11x a song at #80), measured from both lists and averaged. That weighted
+   distance is divided by what a random list would score, so:
+   topMatch = 100 * (1 - weighted distance / random weighted distance)  → 100 identical, 0 no better than random
+   match    = the same with equal weights (whole-list)
+   rho      = Spearman rank correlation;  topK = how many of the other list's top K are also in yours */
 function compareRankings(mine,theirs){
   const inB=new Set(theirs), common=new Set(mine.filter(i=>inB.has(i)));
   const a=mine.filter(i=>common.has(i)), b=theirs.filter(i=>common.has(i)), n=a.length;
   if(n<2) return null;
   const pa=new Map(a.map((i,r)=>[i,r])), pb=new Map(b.map((i,r)=>[i,r]));
-  let sumAbs=0,sumSq=0; for(const i of a){ const d=pa.get(i)-pb.get(i); sumAbs+=Math.abs(d); sumSq+=d*d; }
-  const match=Math.max(0,100*(1-(sumAbs/n)/(n/2))), rho=1-6*sumSq/(n*(n*n-1));
-  // Rank-biased overlap (p = 0.98): agreement at depth d is weighted by 0.98^d, so the top ~50 places dominate.
-  const P=0.98; let seenA=new Set(), seenB=new Set(), inter=0, rbo=0;
-  for(let d=1; d<=n; d++){ const x=a[d-1], y=b[d-1]; if(x===y) inter++; else { if(seenB.has(x)) inter++; if(seenA.has(y)) inter++; } seenA.add(x); seenB.add(y); rbo+=(1-P)*Math.pow(P,d-1)*inter/d; }
-  const topMatch=100*rbo/(1-Math.pow(P,n));
+  const P=0.97, w=r=>Math.pow(P,r);
+  const expRand=r=>{ const r1=r+1; return ((r1-1)*r1/2+(n-r1)*(n-r1+1)/2)/n; }; // E|r - U| for U uniform on 1..n
+  let sumSq=0, dA=0,eA=0,dB=0,eB=0, fA=0,fE=0;
+  for(const i of a){ const ra=pa.get(i), rb=pb.get(i), d=Math.abs(ra-rb); sumSq+=d*d;
+    dA+=w(ra)*d; eA+=w(ra)*expRand(ra); dB+=w(rb)*d; eB+=w(rb)*expRand(rb); fA+=d; fE+=expRand(ra); }
+  const rho=1-6*sumSq/(n*(n*n-1));
+  const topMatch=Math.max(0,100*(1-(dA/eA+dB/eB)/2));
+  const match=Math.max(0,100*(1-fA/fE));
   const topK=k=>{ const A=new Set(a.slice(0,k)); return {hit:b.slice(0,k).filter(i=>A.has(i)).length,k:Math.min(k,n)}; };
   const avgPos=(list,pos,k)=>list.slice(0,k).reduce((s,i)=>s+pos.get(i)+1,0)/Math.min(k,list.length);
   const myTopAvg=avgPos(a,pb,26), theirTopAvg=avgPos(b,pa,26);
@@ -781,7 +786,7 @@ function renderComparison(el,res,label,extra){
   const li=x=>`<li><span>${esc(SONGS[x.id].title)}</span><span>you ${x.mine} · ${esc(label)} ${x.theirs}</span></li>`;
   el.innerHTML=`<div class="cmp-stats">
     <div class="stat"><b>${res.topMatch.toFixed(0)}%</b><span class="small muted">top-weighted match with ${esc(label)}</span></div>
-    <div class="stat"><b>${res.match.toFixed(0)}%</b><span class="small muted">whole-list match</span></div>
+    <div class="stat"><b>${res.match.toFixed(0)}%</b><span class="small muted">whole-list match, equal weights</span></div>
     <div class="stat"><b>${res.top26.hit}/${res.top26.k}</b><span class="small muted">of their top 26 in yours</span></div>
     <div class="stat"><b>${res.top52.hit}/${res.top52.k}</b><span class="small muted">of their top 52 in yours</span></div>
     <div class="stat"><b>#${res.myTopAvg.toFixed(0)}</b><span class="small muted">where your top 26 land in theirs, on average</span></div>

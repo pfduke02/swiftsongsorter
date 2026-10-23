@@ -12,14 +12,14 @@ Pick the Taylor Swift song you like better in each battle and get a ranking of a
 - **Stop any time**: the list is inferred from whatever has been answered. Exact ties are broken by a similarity-weighted look at the songs you did compare, then singles over deep cuts.
 - **Hand sorting**: the inferred list is a suggestion. Drag or nudge songs; the order is saved and the album table follows it.
 - **Save and resume**: progress saves automatically; the Save button also gives a private resume link for continuing on another device.
-- **Compare**: match percentage, top-26 and top-52 overlap, and rank correlation against everyone who has sorted here, against any share link, or against a pasted list. Match is 100 for identical lists, about 33 for unrelated ones, 0 for reversed.
+- **Compare**: match percentage, top-26 and top-52 overlap, and rank correlation against everyone who has sorted here, against any share link, or against a pasted list. Match is 100 for identical lists and 0 for no better than random, weighted toward the top of the list.
 - **All Too Well** appears once, as the 10 Minute Version. Pasted lists that say "All Too Well" map to it.
 
 ### Reference lists
 
 `public/lists.json` holds published rankings to compare against, for example a critic's list. Each entry is `{ "id", "name", "source", "url", "titles": [best first] }`. Titles are matched to the library loosely (case, punctuation, "(Taylor's Version)" and feature credits are ignored). An entry can instead carry `"sort": "<share id>"` to point at a saved sort, which is how the site owner's own ranking is exposed. Every entry shows up as an overlap card on the results screen, in the Compare menu, and at `/l/<id>` as a read-only list.
 
-The headline score is a top-weighted match (rank-biased overlap, p = 0.98): 100 for identical lists, about 20 for unrelated ones, with the top 50 or so places carrying most of the weight. The detail view also shows the whole-list match, top-26 and top-52 overlap, where each side's top 26 lands in the other's list, and rank correlation.
+The headline score is a top-weighted match: for every song, the distance between its two positions, averaged with weights that decay by rank (0.97 per place, so #1 counts about eleven times #80), then scaled against the distance a random list would produce. 100 means identical, 0 means no closer than random. The detail view also shows the whole-list match, top-26 and top-52 overlap, where each side's top 26 lands in the other's list, and rank correlation.
 
 ## Project layout
 
