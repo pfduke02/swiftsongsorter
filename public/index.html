@@ -985,7 +985,9 @@ $('ranked').addEventListener('pointermove',e=>{
   if(!over||over===drag.li||over.parentElement!==ol) return;
   const r=over.getBoundingClientRect();
   if(e.clientY<r.top+r.height/2) ol.insertBefore(drag.li,over); else ol.insertBefore(drag.li,over.nextSibling);
+  renumber();
 });
+function renumber(){ [...$('ranked').children].forEach((li,idx)=>{ const n=li.querySelector('.n'); if(n.textContent!==String(idx+1)) n.textContent=idx+1; }); }
 function endDrag(){
   if(!drag) return;
   const wasActive=drag.active; drag.li.classList.remove('dragging'); document.body.classList.remove('is-dragging'); drag=null;
