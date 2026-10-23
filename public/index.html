@@ -128,6 +128,11 @@ input[type=text]{font:inherit;color:inherit;background:var(--surface);border:1px
 select{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px}
 .cmp-stats{display:flex;gap:20px;flex-wrap:wrap}
 .cmp-stats .stat b{font-size:1.4rem}
+.ocard{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);min-width:200px;flex:1}
+.ocard b{font-family:var(--display);font-size:1.8rem;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.ocard .who{font-weight:500}
+.ocard .row{gap:6px}
+.ocard button{padding:4px 10px;font-size:.8rem}
 .cmp-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
 .cmp-cols ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
 .cmp-cols li{display:flex;justify-content:space-between;gap:10px;font-size:.9rem;border-bottom:1px solid var(--line);padding:4px 0}
@@ -272,9 +277,15 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
 
   <details><summary>Plain-text list</summary><textarea class="export" id="exportBox" readonly></textarea></details>
 
+  <div class="stack" style="gap:10px" id="overlapWrap">
+    <h2>Overlap</h2>
+    <p class="small muted">Top-weighted match: 100 means identical lists, about 20 means no relation. Agreement near the top of the lists counts far more than agreement near the bottom.</p>
+    <div class="cmp-stats" id="overlapCards"><p class="small muted">Working it out…</p></div>
+  </div>
+
   <div class="stack" style="gap:10px" id="compareWrap">
-    <h2>Compare</h2>
-    <p class="small muted">How close is your ranking to someone else's? Match is 100 for identical lists and about 33 for unrelated ones. Only songs in both lists are compared.</p>
+    <h2>Compare in detail</h2>
+    <p class="small muted">Pick who to compare with. Only songs in both lists are compared.</p>
     <div class="row">
       <select id="cmpSource">
         <option value="community">Everyone who has sorted here</option>
@@ -734,7 +745,7 @@ function showResults(){
   const hasCloud=!!(state.cloud&&state.cloud.id);
   $('shareBox').hidden=!hasCloud;
   if(hasCloud) $('shareUrl').textContent=`${location.origin}/s/${state.cloud.id}`;
-  populateListOptions();
+  populateListOptions().then(renderOverlapCards);
   scheduleSync();
 }
 $('shareCopy').onclick=()=>{
@@ -755,17 +766,26 @@ function compareRankings(mine,theirs){
   const pa=new Map(a.map((i,r)=>[i,r])), pb=new Map(b.map((i,r)=>[i,r]));
   let sumAbs=0,sumSq=0; for(const i of a){ const d=pa.get(i)-pb.get(i); sumAbs+=Math.abs(d); sumSq+=d*d; }
   const match=Math.max(0,100*(1-(sumAbs/n)/(n/2))), rho=1-6*sumSq/(n*(n*n-1));
+  // Rank-biased overlap (p = 0.98): agreement at depth d is weighted by 0.98^d, so the top ~50 places dominate.
+  const P=0.98; let seenA=new Set(), seenB=new Set(), inter=0, rbo=0;
+  for(let d=1; d<=n; d++){ const x=a[d-1], y=b[d-1]; if(x===y) inter++; else { if(seenB.has(x)) inter++; if(seenA.has(y)) inter++; } seenA.add(x); seenB.add(y); rbo+=(1-P)*Math.pow(P,d-1)*inter/d; }
+  const topMatch=100*rbo/(1-Math.pow(P,n));
   const topK=k=>{ const A=new Set(a.slice(0,k)); return {hit:b.slice(0,k).filter(i=>A.has(i)).length,k:Math.min(k,n)}; };
+  const avgPos=(list,pos,k)=>list.slice(0,k).reduce((s,i)=>s+pos.get(i)+1,0)/Math.min(k,list.length);
+  const myTopAvg=avgPos(a,pb,26), theirTopAvg=avgPos(b,pa,26);
   const diffs=a.map(i=>({id:i,mine:pa.get(i)+1,theirs:pb.get(i)+1,d:pb.get(i)-pa.get(i)})).sort((x,y)=>y.d-x.d);
-  return {n,match,rho,top26:topK(26),top52:topK(52),higherMine:diffs.slice(0,6).filter(x=>x.d>0),higherTheirs:diffs.slice(-6).reverse().filter(x=>x.d<0)};
+  return {n,match,topMatch,rho,myTopAvg,theirTopAvg,top26:topK(26),top52:topK(52),higherMine:diffs.slice(0,6).filter(x=>x.d>0),higherTheirs:diffs.slice(-6).reverse().filter(x=>x.d<0)};
 }
 function renderComparison(el,res,label,extra){
   if(!res){ el.innerHTML=`<p class="small muted">Not enough songs in common to compare.</p>`; return; }
   const li=x=>`<li><span>${esc(SONGS[x.id].title)}</span><span>you ${x.mine} · ${esc(label)} ${x.theirs}</span></li>`;
   el.innerHTML=`<div class="cmp-stats">
-    <div class="stat"><b>${res.match.toFixed(0)}%</b><span class="small muted">match with ${esc(label)}</span></div>
+    <div class="stat"><b>${res.topMatch.toFixed(0)}%</b><span class="small muted">top-weighted match with ${esc(label)}</span></div>
+    <div class="stat"><b>${res.match.toFixed(0)}%</b><span class="small muted">whole-list match</span></div>
     <div class="stat"><b>${res.top26.hit}/${res.top26.k}</b><span class="small muted">of their top 26 in yours</span></div>
     <div class="stat"><b>${res.top52.hit}/${res.top52.k}</b><span class="small muted">of their top 52 in yours</span></div>
+    <div class="stat"><b>#${res.myTopAvg.toFixed(0)}</b><span class="small muted">where your top 26 land in theirs, on average</span></div>
+    <div class="stat"><b>#${res.theirTopAvg.toFixed(0)}</b><span class="small muted">where their top 26 land in yours</span></div>
     <div class="stat"><b>${res.rho.toFixed(2)}</b><span class="small muted">rank correlation</span></div>
     <div class="stat"><b>${res.n}</b><span class="small muted">songs compared</span></div>
   </div>${extra?`<p class="small muted">${extra}</p>`:''}
@@ -788,11 +808,32 @@ async function fetchOtherRanking(source,link,pasted){
   }
   if(source.startsWith('list:')){
     const lists=await loadLists(); const L=lists.find(x=>x.id===source.slice(5)); if(!L) throw new Error('List not found');
-    const {ids,unmatched}=parseList(L.titles.join('\n'));
-    return {ids,label:L.name,extra:`${L.source||''}${L.url?` <a href="${L.url}" target="_blank" rel="noopener">source</a>`:''}${unmatched.length?` · ${unmatched.length} titles not in the library`:''}`};
+    return resolveList(L);
   }
   const {ids,unmatched}=parseList(pasted||''); if(ids.length<2) throw new Error('Could not match enough song titles');
   return {ids,label:'the pasted list',extra:unmatched.length?`Not matched: ${esc(unmatched.slice(0,8).join('; '))}${unmatched.length>8?` and ${unmatched.length-8} more`:''}`:'All titles matched.'};
+}
+async function resolveList(L){
+  if(L.sort){
+    const r=await fetch(API+'/sorts/'+L.sort); if(!r.ok) throw new Error(`${L.name} is not available right now`);
+    const d=await r.json(); if(!d.ranking) throw new Error(`${L.name} has no ranking yet`);
+    return {ids:d.ranking.map(k=>KEY2ID.get(k)).filter(i=>i!==undefined),label:L.name,extra:`${L.source||''} · ${d.battles} battles${d.manual?', reordered by hand':''}`,meta:d};
+  }
+  const {ids,unmatched}=parseList((L.titles||[]).join('\n'));
+  return {ids,label:L.name,extra:`${L.source||''}${L.url?` <a href="${L.url}" target="_blank" rel="noopener">source</a>`:''}${unmatched.length?` · ${unmatched.length} titles not in the library`:''}`};
+}
+async function renderOverlapCards(){
+  const box=$('overlapCards'); if(!state) return;
+  const mine=currentOrder(); const lists=await loadLists(); const cards=[];
+  const items=[...lists.map(L=>({id:'list:'+L.id,name:L.name,short:L.short||L.name,view:'/l/'+L.id,get:()=>resolveList(L)})),
+               {id:'community',name:'Everyone who has sorted here',short:'everyone here',view:null,get:()=>fetchOtherRanking('community')}];
+  for(const it of items){
+    try{ const o=await it.get(); const res=compareRankings(mine,o.ids); if(!res) continue;
+      cards.push(`<div class="ocard"><span class="who">${esc(it.short)}</span><b>${res.topMatch.toFixed(0)}%</b><span class="small muted">top-weighted · ${res.top26.hit} of their top 26 in yours · their top 26 average #${res.theirTopAvg.toFixed(0)} in yours</span><div class="row"><button data-cmp="${it.id}">Details</button>${it.view?`<a class="btn" style="padding:4px 10px;font-size:.8rem" href="${it.view}" target="_blank" rel="noopener">View their list</a>`:''}</div></div>`);
+    }catch(e){ /* skip lists that are not available */ }
+  }
+  box.innerHTML=cards.join('')||'<p class="small muted">Nothing to compare with yet.</p>';
+  box.querySelectorAll('button[data-cmp]').forEach(b=>b.onclick=()=>{ $('cmpSource').value=b.dataset.cmp; $('cmpSource').onchange(); $('cmpBtn').click(); $('compareWrap').scrollIntoView({behavior:'smooth',block:'start'}); });
 }
 let listsCache=null;
 async function loadLists(){ if(listsCache) return listsCache; try{ const r=await fetch('/lists.json'); listsCache=r.ok?await r.json():[]; }catch(e){ listsCache=[]; } return listsCache; }
@@ -812,8 +853,26 @@ $('viewCmpBtn').onclick=()=>{
   // Rebuild my ranking from the saved state without touching the view.
   state=saved; const keys=new Set(state.included); active=SONGS.filter(x=>keys.has(ALBUMS[x.album].key)).map(x=>x.id); rebuild(true);
   const mine=currentOrder(); state=null;
-  renderComparison($('viewCmpOut'),compareRankings(mine,viewOrder),$('viewTitle').textContent.replace(/\u2019s ranking$/,''),'');
+  renderComparison($('viewCmpOut'),compareRankings(mine,viewOrder),$('viewTitle').textContent.replace(/\u2019s ranking$/,'').replace(/,.*$/,''),'');
 };
+
+/* ---------------- Read-only view of a reference list (/l/:id) ---------------- */
+async function loadListView(id){
+  show('view');
+  try{
+    const lists=await loadLists(); const L=lists.find(x=>x.id===id); if(!L) throw new Error('not found');
+    const o=await resolveList(L);
+    viewOrder=o.ids;
+    $('viewTitle').textContent=L.name;
+    $('viewMeta').innerHTML=`${o.extra||''} · ${viewOrder.length} songs`;
+    renderAlbums(viewOrder,'viewAlb');
+    const ol=$('viewList'); ol.innerHTML='';
+    viewOrder.forEach((i,idx)=>{ const s=SONGS[i], al=ALBUMS[s.album];
+      ol.insertAdjacentHTML('beforeend',`<li><span class="n">${idx+1}</span><div class="title"><span>${esc(s.title)}</span><span class="pill"><i class="dot" style="--c:${al.color}"></i>${al.short}</span></div></li>`); });
+    $('viewAlbWrap').hidden=false; $('viewListWrap').hidden=false;
+    const mineSaved=load(); $('viewCmpBtn').hidden=!(mineSaved&&mineSaved.history&&mineSaved.history.length>0);
+  }catch(e){ $('viewTitle').textContent='Could not load this list'; $('viewMeta').textContent='Check the link, or try again in a moment.'; }
+}
 
 /* ---------------- Read-only shared view (/s/:id) ---------------- */
 async function loadView(id){
@@ -855,6 +914,7 @@ function commitOrder(){
   state.manual=order; save();
   refreshOrderViews(order); renderAlbums(order);
   $('manualNote').hidden=false;
+  renderOverlapCards();
 }
 $('ranked').addEventListener('click',e=>{
   const b=e.target.closest('button[data-mv]'); if(!b) return;
@@ -896,7 +956,9 @@ $('restartBtn').onclick=()=>{ clear(); state=null; $('resumeBox').hidden=true; s
 /* ---------------- Boot ---------------- */
 const shared=location.pathname.match(/^\/s\/([a-z0-9]+)\/?$/i);
 const resume=location.pathname.match(/^\/r\/([a-z0-9]+)\/?$/i);
+const listView=location.pathname.match(/^\/l\/([a-z0-9-]+)\/?$/i);
 if(shared) loadView(shared[1]);
+else if(listView) loadListView(listView[1]);
 else if(resume&&location.hash.length>1) resumeFromLink(resume[1],location.hash.slice(1));
 else { renderSetup(); show('setup'); }
 </script>

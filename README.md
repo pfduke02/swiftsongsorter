@@ -17,7 +17,9 @@ Pick the Taylor Swift song you like better in each battle and get a ranking of a
 
 ### Reference lists
 
-`public/lists.json` holds published rankings to compare against, for example a critic's list. Each entry is `{ "id", "name", "source", "url", "titles": [best first] }`. Titles are matched to the library loosely (case, punctuation, "(Taylor's Version)" and feature credits are ignored). Anything listed there shows up in the Compare menu.
+`public/lists.json` holds published rankings to compare against, for example a critic's list. Each entry is `{ "id", "name", "source", "url", "titles": [best first] }`. Titles are matched to the library loosely (case, punctuation, "(Taylor's Version)" and feature credits are ignored). An entry can instead carry `"sort": "<share id>"` to point at a saved sort, which is how the site owner's own ranking is exposed. Every entry shows up as an overlap card on the results screen, in the Compare menu, and at `/l/<id>` as a read-only list.
+
+The headline score is a top-weighted match (rank-biased overlap, p = 0.98): 100 for identical lists, about 20 for unrelated ones, with the top 50 or so places carrying most of the weight. The detail view also shows the whole-list match, top-26 and top-52 overlap, where each side's top 26 lands in the other's list, and rank correlation.
 
 ## Project layout
 

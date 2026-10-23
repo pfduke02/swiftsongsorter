@@ -1,8 +1,11 @@
-[{"id":"princiotti-2026",
-"name":"Nora Princiotti, The Ringer (Oct 2026)",
-"source":"Ranking Every Taylor Swift Song, From 270 to 1 (The Ringer, Oct 21, 2026), trimmed to the 258 album-era songs in this library. Her no. 1 is the original All Too Well; the 10 Minute Version stands in for it.",
-"url":"https://www.theringer.com/2026/10/21/music/ranking-every-taylor-swift-song",
-"titles":["All Too Well",
+[
+{
+"id": "princiotti-2026",
+"name": "Nora Princiotti, The Ringer (Oct 2026)",
+"source": "Ranking Every Taylor Swift Song, From 270 to 1 (The Ringer, Oct 21, 2026), trimmed to the 258 album-era songs in this library. Her no. 1 is the original All Too Well; the 10 Minute Version stands in for it.",
+"url": "https://www.theringer.com/2026/10/21/music/ranking-every-taylor-swift-song",
+"titles": [
+"All Too Well",
 "You Belong With Me",
 "New Romantics",
 "Our Song",
@@ -259,4 +262,15 @@
 "Girl at Home",
 "CANCELLED!",
 "ME!",
-"The Alchemy"]}]
+"The Alchemy"
+],
+"short": "Nora Princiotti (The Ringer)"
+},
+{
+"id": "fishman",
+"name": "Fishman’s ranking",
+"short": "Fishman",
+"source": "The site owner’s own sort",
+"sort": "REPLACE_WITH_SHARE_ID"
+}
+]
