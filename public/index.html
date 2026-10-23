@@ -93,13 +93,16 @@ kbd{font-family:var(--body);font-size:.75rem;border:1px solid var(--line);border
 .albrank .v{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.8rem;text-align:right}
 .ranked{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
 .ranked li{display:grid;grid-template-columns:auto 3ch 1fr auto auto;gap:10px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);background:var(--bg)}
-.ranked li.dragging{opacity:.5;background:var(--accent-soft)}
+.ranked:not(.view) li{cursor:grab;touch-action:pan-y}
+.ranked li.dragging{background:var(--accent-soft);box-shadow:0 6px 18px rgba(0,0,0,.18);position:relative;z-index:2;cursor:grabbing}
+body.is-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .handle{cursor:grab;touch-action:none;color:var(--muted);padding:6px 4px;user-select:none;font-size:1rem;line-height:1;border:none;background:none}
 .handle:active{cursor:grabbing}
 .nudge{display:flex;flex-direction:column;gap:2px}
 .nudge button{padding:0 6px;line-height:1.3;font-size:.75rem;border-radius:4px}
 @media (max-width:560px){.conf em{display:none}}
-.ranked li:nth-child(-n+10){background:var(--surface)}
+.ranked li:nth-child(-n+13){background:var(--surface)}
+.ranked li:nth-child(13){border-bottom:2px solid var(--accent)}
 .ranked .n{font-variant-numeric:tabular-nums;color:var(--muted);text-align:right;font-family:var(--display)}
 .ranked .title{min-width:0;display:flex;flex-direction:column;gap:1px}
 .ranked .title span{font-weight:500}
@@ -283,7 +286,7 @@ code.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85re
 
   <div class="stack" style="gap:10px">
     <h2>Songs</h2>
-    <p class="small muted">This is the suggested order. Drag the handle to move a song, or use the arrows. Your edits are saved.</p>
+    <p class="small muted">This is the suggested order. Drag a song up or down (on a phone, drag by the handle), or use the arrows. Your edits are saved. The top 13 are highlighted.</p>
     <ol class="ranked" id="ranked"></ol>
   </div>
 
@@ -786,22 +789,22 @@ function compareRankings(mine,theirs){
   const diffs=a.map(i=>({id:i,mine:pa.get(i)+1,theirs:pb.get(i)+1,d:pb.get(i)-pa.get(i)})).sort((x,y)=>y.d-x.d);
   return {n,match,topMatch,rho,myTopAvg,theirTopAvg,top26:topK(26),top52:topK(52),higherMine:diffs.slice(0,6).filter(x=>x.d>0),higherTheirs:diffs.slice(-6).reverse().filter(x=>x.d<0)};
 }
-function renderComparison(el,res,label,extra){
+function renderComparison(el,res,label,extra,pron='their'){
   if(!res){ el.innerHTML=`<p class="small muted">Not enough songs in common to compare.</p>`; return; }
   const li=x=>`<li><span>${esc(SONGS[x.id].title)}</span><span>you ${x.mine} · ${esc(label)} ${x.theirs}</span></li>`;
   el.innerHTML=`<div class="cmp-stats">
     <div class="stat"><b>${res.topMatch.toFixed(0)}%</b><span class="small muted">top-weighted match with ${esc(label)}</span></div>
     <div class="stat"><b>${res.match.toFixed(0)}%</b><span class="small muted">whole-list match, equal weights</span></div>
-    <div class="stat"><b>${res.top26.hit}/${res.top26.k}</b><span class="small muted">of their top 26 in yours</span></div>
-    <div class="stat"><b>${res.top52.hit}/${res.top52.k}</b><span class="small muted">of their top 52 in yours</span></div>
-    <div class="stat"><b>#${res.myTopAvg.toFixed(0)}</b><span class="small muted">where your top 26 land in theirs, on average</span></div>
-    <div class="stat"><b>#${res.theirTopAvg.toFixed(0)}</b><span class="small muted">where their top 26 land in yours</span></div>
+    <div class="stat"><b>${res.top26.hit}/${res.top26.k}</b><span class="small muted">of ${pron} top 26 in yours</span></div>
+    <div class="stat"><b>${res.top52.hit}/${res.top52.k}</b><span class="small muted">of ${pron} top 52 in yours</span></div>
+    <div class="stat"><b>#${res.myTopAvg.toFixed(0)}</b><span class="small muted">where your top 26 land in ${pron==='her'?'hers':pron==='his'?'his':'theirs'}, on average</span></div>
+    <div class="stat"><b>#${res.theirTopAvg.toFixed(0)}</b><span class="small muted">where ${pron} top 26 land in yours</span></div>
     <div class="stat"><b>${res.rho.toFixed(2)}</b><span class="small muted">rank correlation</span></div>
     <div class="stat"><b>${res.n}</b><span class="small muted">songs compared</span></div>
   </div>${extra?`<p class="small muted">${extra}</p>`:''}
   <div class="cmp-cols">
     <div><p class="eyebrow">You rank much higher</p><ul>${res.higherMine.map(li).join('')||'<li><span class="muted">None</span></li>'}</ul></div>
-    <div><p class="eyebrow">They rank much higher</p><ul>${res.higherTheirs.map(li).join('')||'<li><span class="muted">None</span></li>'}</ul></div>
+    <div><p class="eyebrow">${pron==='her'?'She ranks':pron==='his'?'He ranks':'They rank'} much higher</p><ul>${res.higherTheirs.map(li).join('')||'<li><span class="muted">None</span></li>'}</ul></div>
   </div>`;
 }
 async function fetchOtherRanking(source,link,pasted){
@@ -827,19 +830,19 @@ async function resolveList(L){
   if(L.sort){
     const r=await fetch(API+'/sorts/'+L.sort); if(!r.ok) throw new Error(`${L.name} is not available right now`);
     const d=await r.json(); if(!d.ranking) throw new Error(`${L.name} has no ranking yet`);
-    return {ids:d.ranking.map(k=>KEY2ID.get(k)).filter(i=>i!==undefined),label:L.name,extra:`${L.source||''} · ${d.battles} battles${d.manual?', reordered by hand':''}`,meta:d};
+    return {ids:d.ranking.map(k=>KEY2ID.get(k)).filter(i=>i!==undefined),label:L.name,pron:L.pron||'their',extra:`${L.source||''} · ${d.battles} battles${d.manual?', reordered by hand':''}`,meta:d};
   }
   const {ids,unmatched}=parseList((L.titles||[]).join('\n'));
-  return {ids,label:L.name,extra:`${L.source||''}${L.url?` <a href="${L.url}" target="_blank" rel="noopener">source</a>`:''}${unmatched.length?` · ${unmatched.length} titles not in the library`:''}`};
+  return {ids,label:L.name,pron:L.pron||'their',extra:`${L.source||''}${L.url?` <a href="${L.url}" target="_blank" rel="noopener">source</a>`:''}${unmatched.length?` · ${unmatched.length} titles not in the library`:''}`};
 }
 async function renderOverlapCards(){
   const box=$('overlapCards'); if(!state) return;
   const mine=currentOrder(); const lists=await loadLists(); const cards=[];
-  const items=[...lists.map(L=>({id:'list:'+L.id,name:L.name,short:L.short||L.name,view:'/l/'+L.id,get:()=>resolveList(L)})),
-               {id:'community',name:'Everyone who has sorted here',short:'everyone here',view:null,get:()=>fetchOtherRanking('community')}];
+  const items=[...lists.map(L=>({id:'list:'+L.id,name:L.name,short:L.short||L.name,pron:L.pron||'their',view:'/l/'+L.id,get:()=>resolveList(L)})),
+               {id:'community',name:'Everyone who has sorted here',short:'everyone here',pron:'their',view:null,get:()=>fetchOtherRanking('community')}];
   for(const it of items){
     try{ const o=await it.get(); const res=compareRankings(mine,o.ids); if(!res) continue;
-      cards.push(`<div class="ocard"><span class="who">${esc(it.short)}</span><b>${res.topMatch.toFixed(0)}%</b><span class="small muted">top-weighted · ${res.top26.hit} of their top 26 in yours · their top 26 average #${res.theirTopAvg.toFixed(0)} in yours</span><div class="row"><button data-cmp="${it.id}">Details</button>${it.view?`<a class="btn" style="padding:4px 10px;font-size:.8rem" href="${it.view}" target="_blank" rel="noopener">View their list</a>`:''}</div></div>`);
+      cards.push(`<div class="ocard"><span class="who">${esc(it.short)}</span><b>${res.topMatch.toFixed(0)}%</b><span class="small muted">top-weighted · ${res.top26.hit} of ${it.pron} top 26 in yours · ${it.pron} top 26 average #${res.theirTopAvg.toFixed(0)} in yours</span><div class="row"><button data-cmp="${it.id}">Details</button>${it.view?`<a class="btn" style="padding:4px 10px;font-size:.8rem" href="${it.view}" target="_blank" rel="noopener">View ${it.pron} list</a>`:''}</div></div>`);
     }catch(e){ /* skip lists that are not available */ }
   }
   box.innerHTML=cards.join('')||'<p class="small muted">Nothing to compare with yet.</p>';
@@ -855,7 +858,7 @@ $('cmpSource').onchange=()=>{ const v=$('cmpSource').value; $('cmpLink').hidden=
 $('cmpBtn').onclick=async()=>{
   const out=$('cmpOut'); out.innerHTML='<p class="small muted">Comparing…</p>';
   try{ const o=await fetchOtherRanking($('cmpSource').value,$('cmpLink').value,$('cmpPaste').value);
-       renderComparison(out,compareRankings(currentOrder(),o.ids),o.label,o.extra); }
+       renderComparison(out,compareRankings(currentOrder(),o.ids),o.label,o.extra,o.pron||'their'); }
   catch(e){ out.innerHTML=`<p class="small muted">${esc(e.message)}</p>`; }
 };
 $('friendBtn').onclick=async()=>{
@@ -894,7 +897,7 @@ async function loadListView(id){
     viewOrder.forEach((i,idx)=>{ const s=SONGS[i], al=ALBUMS[s.album];
       ol.insertAdjacentHTML('beforeend',`<li><span class="n">${idx+1}</span><div class="title"><span>${esc(s.title)}</span><span class="pill"><i class="dot" style="--c:${al.color}"></i>${al.short}</span></div></li>`); });
     $('viewAlbWrap').hidden=false; $('viewListWrap').hidden=false;
-    autoAlign(L.short||L.name);
+    autoAlign(L.short||L.name,L.pron||'their');
   }catch(e){ $('viewTitle').textContent='Could not load this list'; $('viewMeta').textContent='Check the link, or try again in a moment.'; }
 }
 
@@ -919,14 +922,14 @@ async function loadView(id){
   }catch(e){ $('viewTitle').textContent='Could not load this ranking'; $('viewMeta').textContent='Check the link, or try again in a moment.'; }
 }
 /* On a shared or reference list page: if this browser has its own sort, show the alignment right away. */
-function autoAlign(label){
+function autoAlign(label,pron='their'){
   const mineSaved=load(); const has=!!(mineSaved&&mineSaved.history&&mineSaved.history.length>0);
   $('viewCmpBtn').hidden=true;
   if(!has){ $('viewCmpOut').innerHTML=`<div class="note"><p><b>Want to see how aligned you are with ${esc(label)}?</b> <span class="small muted">Make your own ranking first, then open this link again in the same browser.</span></p></div>`; return; }
   state=mineSaved; const keys=new Set(state.included); active=SONGS.filter(x=>keys.has(ALBUMS[x.album].key)).map(x=>x.id); rebuild(true);
   const mine=currentOrder(); state=null;
   $('viewCmpOut').innerHTML=`<h2>Your alignment with ${esc(label)}</h2><div id="viewCmpInner"></div>`;
-  renderComparison($('viewCmpInner'),compareRankings(mine,viewOrder),label,'');
+  renderComparison($('viewCmpInner'),compareRankings(mine,viewOrder),label,'',pron);
 }
 function renderList(order){
   const ol=$('ranked'); ol.innerHTML='';
@@ -959,24 +962,38 @@ $('ranked').addEventListener('click',e=>{
   commitOrder(); b.focus();
 });
 let drag=null;
+function startDrag(e){
+  drag.active=true; drag.li.classList.add('dragging'); document.body.classList.add('is-dragging');
+  try{ drag.li.setPointerCapture(e.pointerId); }catch(err){}
+}
 $('ranked').addEventListener('pointerdown',e=>{
-  const hd=e.target.closest('.handle'); if(!hd) return;
-  drag={li:hd.closest('li')}; drag.li.classList.add('dragging');
-  try{ hd.setPointerCapture(e.pointerId); }catch(err){}
-  e.preventDefault();
+  if(e.pointerType==='mouse'&&e.button!==0) return;
+  if(e.target.closest('button[data-mv]')) return;
+  const li=e.target.closest('li'); if(!li||li.parentElement!==$('ranked')) return;
+  const fromHandle=!!e.target.closest('.handle');
+  if(e.pointerType!=='mouse'&&!fromHandle) return;   // on touch, only the handle starts a drag so the page can still scroll
+  drag={li,active:false,startY:e.clientY};
+  if(fromHandle){ e.preventDefault(); startDrag(e); }
 });
 $('ranked').addEventListener('pointermove',e=>{
   if(!drag) return;
+  if(!drag.active){ if(Math.abs(e.clientY-drag.startY)<5) return; startDrag(e); }
+  e.preventDefault();
   const ol=$('ranked');
-  if(e.clientY<70) window.scrollBy(0,-12); else if(e.clientY>window.innerHeight-70) window.scrollBy(0,12);
+  if(e.clientY<80) window.scrollBy(0,-14); else if(e.clientY>window.innerHeight-80) window.scrollBy(0,14);
   const el=document.elementFromPoint(e.clientX,e.clientY); const over=el&&el.closest('li');
   if(!over||over===drag.li||over.parentElement!==ol) return;
   const r=over.getBoundingClientRect();
   if(e.clientY<r.top+r.height/2) ol.insertBefore(drag.li,over); else ol.insertBefore(drag.li,over.nextSibling);
 });
-function endDrag(){ if(!drag) return; drag.li.classList.remove('dragging'); drag=null; commitOrder(); }
+function endDrag(){
+  if(!drag) return;
+  const wasActive=drag.active; drag.li.classList.remove('dragging'); document.body.classList.remove('is-dragging'); drag=null;
+  if(wasActive) commitOrder();
+}
 $('ranked').addEventListener('pointerup',endDrag);
 $('ranked').addEventListener('pointercancel',endDrag);
+$('ranked').addEventListener('dragstart',e=>e.preventDefault());
 $('resetOrderBtn').onclick=()=>{ state.manual=null; save(); showResults(); toast('Back to the suggested order'); };
 function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 $('moreBtn').onclick=()=>{ state.budget=state.history.length+25; state.pair=pickPair(); save(); renderBattle(); };
